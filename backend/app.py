@@ -76,6 +76,43 @@ def transactions():
 
     return jsonify(transaction_data)
 
+    @app.route("/api/counterfactual/<transaction_id>")
+def counterfactual(transaction_id):
+    results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+
+    transaction = results[
+        results["transaction_id"].astype(str) == str(transaction_id)
+    ]
+
+    if transaction.empty:
+        return jsonify({
+            "error": "Transaction not found"
+        }), 404
+
+    row = transaction.iloc[0]
+
+    if str(row["exception_type"]) == "NONE":
+        return jsonify({
+            "error": "This transaction has no exception"
+        }), 400
+
+    exception = {
+        "transaction_id": str(row["transaction_id"]),
+        "exception_type": str(row["exception_type"]),
+        "expected_settlement": float(row["expected_settlement"]),
+        "actual_settlement": float(row["actual_settlement"]),
+        "difference": float(row["difference"]),
+        "refund_amount": float(row["refund_amount"]),
+        "fee": float(row["fee"]),
+        "tax": float(row["tax"]),
+        "settlement_status": str(row["settlement_status"]),
+        "confidence": float(row.get("confidence", 0.95)),
+    }
+
+    explanation = generate_explanation(exception)
+
+    return jsonify(explanation)
+
 
 @app.route("/api/health")
 def health():

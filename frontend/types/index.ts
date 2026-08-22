@@ -2,8 +2,6 @@ export type TransactionStatus = 'Reconciled' | 'Exception' | 'Review'
 
 export type Transaction = {
   id: string
-
-  // Display fields
   amount: string
   counterparty: string
   rail: string
@@ -12,7 +10,7 @@ export type Transaction = {
   date: string
   risk: 'Low' | 'Medium' | 'High'
 
-  // Backend fields
+  // Backend reconciliation fields
   expectedAmount?: number
   actualAmount?: number
   difference?: number
