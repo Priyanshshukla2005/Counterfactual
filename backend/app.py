@@ -3,10 +3,13 @@ from flask_cors import CORS
 
 from reconciliation import reconcile
 from explanation_engine import generate_explanation
+from auth import auth_bp
 
 
 app = Flask(__name__)
 CORS(app)
+
+app.register_blueprint(auth_bp)
 
 
 CSV_PATH = "data/counterfactual_phase1_transactions.csv"
@@ -64,6 +67,14 @@ def transactions():
     for _, row in results.iterrows():
         transaction_data.append({
             "transaction_id": str(row["transaction_id"]),
+            "order_id": str(row.get("order_id", "")),
+            "payment_id": str(row.get("payment_id", "")),
+            "customer_id": str(row.get("customer_id", "")),
+            "payment_date": str(row.get("payment_date", "")),
+            "payment_method": str(row.get("payment_method", "CARD")),
+            "status": str(row.get("status", "captured")),
+            "amount": float(row.get("amount", row.get("actual_settlement", 0))),
+            "settlement_date": str(row.get("settlement_date", "")),
             "expected_settlement": float(row["expected_settlement"]),
             "actual_settlement": float(row["actual_settlement"]),
             "difference": float(row["difference"]),
@@ -76,7 +87,8 @@ def transactions():
 
     return jsonify(transaction_data)
 
-    @app.route("/api/counterfactual/<transaction_id>")
+
+@app.route("/api/counterfactual/<transaction_id>")
 def counterfactual(transaction_id):
     results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
 

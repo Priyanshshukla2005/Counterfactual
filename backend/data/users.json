@@ -1,0 +1,34 @@
+[
+  {
+    "id": "usr_7c1273bc06",
+    "name": "Priyansh Shukla",
+    "email": "priyansh@counterfactual.fi",
+    "password_hash": "scrypt:32768:8:1$2S74BBr11Z9vgASL$1fd69ea7735383ea91f2bb58efff7b8bfb85242e2b9d743f5fe11a466ea4bbf37a1f71a4019f1fe21b3375c767835f10c6c8b4efd4d4c80b2d7eeaec72bc14fb",
+    "organization": "Counterfactual Treasury",
+    "created_at": "2026-08-24T18:11:47.679067"
+  },
+  {
+    "id": "usr_1758aa6479",
+    "name": "Sarah Chen",
+    "email": "sarah@fintech.co",
+    "password_hash": "scrypt:32768:8:1$2WmzdnAUhlBmzpaO$e7ffea8ec4bcbdf2ac53b3ff2d8251c8f361478a7c940e3e0bf598b9bd1277bbd1dd1c46be2e958364bfd0d6f4a55569825c8d0cfe5004bf45b90c8a32c3b57a",
+    "organization": "Apex Treasury Corp",
+    "created_at": "2026-08-24T18:12:05.713457"
+  },
+  {
+    "id": "usr_4d1c9c8bce",
+    "name": "Priyansh Shukla",
+    "email": "lead_1787595344@enterprisebank.com",
+    "password_hash": "scrypt:32768:8:1$E22wqLrhzFOsPdY0$c0da955fcb380b61250ef78d8d2a94b94f990fa742d781b2e5d32cd3bdb73e43bb4f40eec77f175abf0c29dac277eb4be3ed652d23e596117b600621f467385f",
+    "organization": "Global Treasury Management",
+    "created_at": "2026-08-24T18:15:46.325966"
+  },
+  {
+    "id": "usr_919dbd6dd2",
+    "name": "Priyansh",
+    "email": "priyanshshukla84@gmail.com",
+    "password_hash": "scrypt:32768:8:1$h8WBmCtwR3Py1OLR$c60143453af015c5a403c4d7f9bf8dd55c4f50031ec6d4355263c442e22ab6ac5a249af550ac6d47507a973c66013ca2eb32514a0765468895c2cb45fdc1d0bd",
+    "organization": "Shukla",
+    "created_at": "2026-08-24T18:20:01.402659"
+  }
+]

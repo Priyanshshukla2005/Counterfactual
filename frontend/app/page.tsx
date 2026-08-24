@@ -1,253 +1,76 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import type { Transaction } from '@/types'
-
+import React, { useEffect, useMemo, useState } from 'react'
+import type {
+  NavSection,
+  Transaction,
+  BackendDashboardResponse,
+  BackendException,
+  TransactionFilters as FilterType,
+} from '@/types'
 import {
-  getTransactions,
   getDashboardData,
-  type BackendException,
-  type BackendDashboardResponse,
+  getTransactions,
+  formatCurrency,
+  formatCompactCurrency,
+  readableException,
 } from '@/lib/api'
+import { AuthProvider, useAuth, getGreeting } from '@/lib/auth-context'
+import { AuthScreen } from '@/components/auth/AuthScreen'
+
+import { Sidebar } from '@/components/layout/Sidebar'
+import { TopHeader } from '@/components/layout/TopHeader'
+import { MetricCard } from '@/components/dashboard/MetricCard'
+import { SettlementChart } from '@/components/dashboard/SettlementChart'
+import { ExceptionBreakdown } from '@/components/dashboard/ExceptionBreakdown'
+import { AttentionQueue } from '@/components/dashboard/AttentionQueue'
+import { TransactionFilters } from '@/components/transactions/TransactionFilters'
+import { TransactionTable } from '@/components/transactions/TransactionTable'
+import { TransactionDrawer } from '@/components/transactions/TransactionDrawer'
+import { CounterfactualStudio } from '@/components/counterfactual/CounterfactualStudio'
+import { ReportAnalytics } from '@/components/reports/ReportAnalytics'
+import { DashboardSkeleton } from '@/components/common/LoadingSkeleton'
+import { EmptyState } from '@/components/common/EmptyState'
 
 import {
-  Activity,
-  AlertTriangle,
-  BarChart3,
-  Bell,
-  CheckCircle2,
-  ChevronDown,
-  CircleHelp,
-  Database,
-  Filter,
-  LayoutDashboard,
-  Menu,
-  MoreHorizontal,
   RefreshCw,
-  Search,
-  Settings,
-  ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
-  TrendingUp,
+  ArrowRight,
 } from 'lucide-react'
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+function DashboardApp() {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-  }).format(Number(value) || 0)
-}
-
-function formatCompactCurrency(value: number) {
-  const amount = Number(value) || 0
-
-  if (Math.abs(amount) >= 1_000_000) {
-    return `₹${(amount / 1_000_000).toFixed(2)}M`
-  }
-
-  if (Math.abs(amount) >= 1_000) {
-    return `₹${(amount / 1_000).toFixed(1)}K`
-  }
-
-  return formatCurrency(amount)
-}
-
-function readableException(type: string) {
-  switch (type) {
-    case 'DUPLICATE':
-      return 'Duplicate settlement'
-
-    case 'MISSING_SETTLEMENT':
-      return 'Missing settlement'
-
-    case 'DELAYED_SETTLEMENT':
-      return 'Delayed settlement'
-
-    case 'PARTIAL_REFUND':
-      return 'Partial refund'
-
-    case 'FEE_MISMATCH':
-      return 'Fee mismatch'
-
-    default:
-      return type
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-  }
-}
-
-function transactionAmount(transaction: Transaction) {
-  const value = (transaction as any).actualAmount
-
-  if (typeof value === 'number') {
-    return value
-  }
-
-  const amount = (transaction as any).amount
-
-  if (typeof amount === 'number') {
-    return amount
-  }
-
-  if (typeof amount === 'string') {
-    const parsed = Number(
-      amount.replace(/[₹$,]/g, '').trim()
-    )
-
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-
-  return 0
-}
-
-function transactionExpectedAmount(transaction: Transaction) {
-  const value = (transaction as any).expectedAmount
-
-  return typeof value === 'number'
-    ? value
-    : transactionAmount(transaction)
-}
-
-
-/* =========================================================
-   STATUS
-========================================================= */
-
-function Status({
-  children,
-}: {
-  children: string
-}) {
-  const value = children.toLowerCase()
-
-  const tone =
-    value === 'reconciled'
-      ? 'success'
-      : value === 'missing' ||
-          value === 'exception'
-        ? 'danger'
-        : 'warning'
-
-  return (
-    <span className={`status ${tone}`}>
-      {children}
-    </span>
-  )
-}
-
-
-/* =========================================================
-   MINI CHART
-========================================================= */
-
-function MiniBars({
-  exceptions,
-}: {
-  exceptions: BackendException[]
-}) {
-  const baseValues = [
-    42,
-    58,
-    35,
-    67,
-    54,
-    78,
-    64,
-    88,
-    72,
-    94,
-    82,
-    100,
-  ]
-
-  const multiplier =
-    exceptions.length > 0
-      ? Math.min(
-          1.15,
-          Math.max(0.75, exceptions.length / 30)
-        )
-      : 0.75
-
-  return (
-    <div
-      className="mini-bars"
-      aria-label="Settlement performance chart"
-    >
-      {baseValues.map((height, index) => (
-        <span
-          key={index}
-          style={{
-            height: `${Math.min(
-              100,
-              height * multiplier
-            )}%`,
-          }}
-        />
-      ))}
-    </div>
-  )
-}
-
-
-/* =========================================================
-   PAGE
-========================================================= */
-
-export default function Page() {
-  const [active, setActive] = useState('Overview')
-
-  const [dashboard, setDashboard] =
-    useState<BackendDashboardResponse | null>(null)
-
-  const [transactions, setTransactions] =
-    useState<Transaction[]>([])
-
-  const [selected, setSelected] =
-    useState<BackendException | null>(null)
-
-  const [query, setQuery] = useState('')
-
+  const [active, setActive] = useState<NavSection>('Overview')
+  const [dashboard, setDashboard] = useState<BackendDashboardResponse | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const [error, setError] =
-    useState<string | null>(null)
+  // Drawer & Selection state
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [counterfactualTargetId, setCounterfactualTargetId] = useState<string | undefined>()
 
-  const [aiLoading, setAiLoading] =
-    useState(false)
+  // Search & Filter state
+  const [globalQuery, setGlobalQuery] = useState('')
+  const [filters, setFilters] = useState<FilterType>({
+    query: '',
+    status: 'ALL',
+    risk: 'ALL',
+    exceptionType: 'ALL',
+    rail: 'ALL',
+  })
 
-  const [aiDone, setAiDone] =
-    useState(false)
-
-
-  /* =======================================================
-     LOAD BACKEND
-  ======================================================= */
-
-  async function loadDashboard() {
+  // Load backend data
+  async function loadData(showSkeleton = true) {
     try {
-      setLoading(true)
+      if (showSkeleton) setLoading(true)
+      else setIsSyncing(true)
       setError(null)
 
-      const [
-        dashboardData,
-        transactionData,
-      ] = await Promise.all([
+      const [dashboardData, transactionData] = await Promise.all([
         getDashboardData(),
         getTransactions(),
       ])
@@ -255,2804 +78,489 @@ export default function Page() {
       setDashboard(dashboardData)
       setTransactions(transactionData)
     } catch (err) {
-      console.error(err)
-
+      console.error('Failed to load settlement data:', err)
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to load dashboard'
+          : 'Unable to connect to reconciliation engine'
       )
     } finally {
       setLoading(false)
+      setIsSyncing(false)
     }
   }
 
   useEffect(() => {
-    loadDashboard()
-  }, [])
+    if (isAuthenticated) {
+      loadData()
+    }
+  }, [isAuthenticated])
 
+  // Derived metrics
+  const metrics = dashboard?.metrics ?? {}
+  const exceptions = dashboard?.exceptions ?? []
+  const totalExceptions = metrics.exception_records ?? exceptions.length
+  const totalRecords = metrics.total_records ?? transactions.length
+  const matchRate = metrics.match_rate ?? 0
+  const expectedTotal = metrics.expected_total ?? 0
+  const actualTotal = metrics.actual_total ?? 0
+  const unreconciledAmount = Math.abs(metrics.unreconciled_amount ?? 0)
 
-  /* =======================================================
-     DATA
-  ======================================================= */
-
-  const exceptions =
-    dashboard?.exceptions ?? []
-
-  const metrics =
-    dashboard?.metrics ?? {}
-
-  const totalExceptions =
-    exceptions.length
-
-
-  /* =======================================================
-     SEARCH
-  ======================================================= */
-
-  const filteredTransactions =
-    useMemo(() => {
-      const search =
-        query.toLowerCase().trim()
-
-      if (!search) {
-        return transactions
+  // Filtered transactions for Transactions tab
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      const q = (filters.query || globalQuery).toLowerCase().trim()
+      if (q) {
+        const searchable = `${t.id} ${t.orderId || ''} ${t.counterparty} ${t.rail} ${
+          t.reason
+        } ${t.exceptionType || ''} ${t.settlementStatus || ''}`.toLowerCase()
+        if (!searchable.includes(q)) return false
       }
 
-      return transactions.filter(
-        (transaction) => {
-          const text = `
-            ${transaction.id}
-            ${transaction.exceptionType}
-            ${transaction.status}
-            ${transaction.reason}
-            ${(transaction as any).settlementStatus}
-          `.toLowerCase()
-
-          return text.includes(search)
-        }
-      )
-    }, [transactions, query])
-
-
-  const filteredExceptions =
-    useMemo(() => {
-      const search =
-        query.toLowerCase().trim()
-
-      if (!search) {
-        return exceptions
+      if (filters.status !== 'ALL') {
+        if (filters.status === 'Reconciled' && t.status !== 'Reconciled') return false
+        if (filters.status === 'Exception' && t.status !== 'Exception') return false
       }
 
-      return exceptions.filter(
-        (exception) => {
-          const text = `
-            ${exception.transaction_id}
-            ${exception.exception_type}
-            ${exception.settlement_status}
-          `.toLowerCase()
-
-          return text.includes(search)
-        }
-      )
-    }, [exceptions, query])
-
-
-  /* =======================================================
-     EXCEPTION BREAKDOWN
-  ======================================================= */
-
-  const exceptionBreakdown =
-    useMemo(() => {
-      const counts: Record<
-        string,
-        number
-      > = {}
-
-      exceptions.forEach(
-        (exception) => {
-          const label =
-            readableException(
-              exception.exception_type
-            )
-
-          counts[label] =
-            (counts[label] || 0) + 1
-        }
-      )
-
-      return Object.entries(counts)
-        .sort(
-          (a, b) => b[1] - a[1]
-        )
-        .map(
-          ([label, count]) => ({
-            label,
-            count,
-          })
-        )
-    }, [exceptions])
-
-
-  /* =======================================================
-     DONUT
-  ======================================================= */
-
-  const donutBackground =
-    useMemo(() => {
-      if (totalExceptions === 0) {
-        return 'conic-gradient(#e5e7eb 0deg 360deg)'
+      if (filters.risk !== 'ALL' && t.risk !== filters.risk) {
+        return false
       }
 
-      const colors = [
-        '#ef6262',
-        '#f5a742',
-        '#647eea',
-        '#9b7aea',
-        '#36b37e',
-      ]
+      if (
+        filters.exceptionType !== 'ALL' &&
+        t.exceptionType !== filters.exceptionType
+      ) {
+        return false
+      }
 
-      let currentDegree = 0
+      if (filters.rail !== 'ALL' && t.rail !== filters.rail) {
+        return false
+      }
 
-      const segments =
-        exceptionBreakdown.map(
-          (item, index) => {
-            const degree =
-              (item.count /
-                totalExceptions) *
-              360
+      return true
+    })
+  }, [transactions, filters, globalQuery])
 
-            const start =
-              currentDegree
+  // Filtered exceptions for Exceptions tab
+  const filteredExceptionsList = useMemo(() => {
+    return transactions.filter((t) => {
+      if (t.status !== 'Exception') return false
+      const q = globalQuery.toLowerCase().trim()
+      if (q) {
+        const searchable = `${t.id} ${t.orderId || ''} ${t.rail} ${t.reason} ${
+          t.exceptionType || ''
+        }`.toLowerCase()
+        if (!searchable.includes(q)) return false
+      }
+      return true
+    })
+  }, [transactions, globalQuery])
 
-            const end =
-              currentDegree + degree
-
-            currentDegree = end
-
-            return `${colors[index % colors.length]} ${start}deg ${end}deg`
-          }
-        )
-
-      return `conic-gradient(${segments.join(', ')})`
-    }, [
-      exceptionBreakdown,
-      totalExceptions,
-    ])
-
-
-  /* =======================================================
-     AI / COUNTERFACTUAL
-  ======================================================= */
-
-  function openExplanation() {
-    setAiLoading(true)
-
-    setTimeout(() => {
-      setAiLoading(false)
-      setAiDone(true)
-    }, 800)
+  // Handlers
+  const handleOpenTransaction = (tx: Transaction) => {
+    setSelectedTransaction(tx)
   }
 
-
-  function openTransaction(
-    transactionId: string
-  ) {
-    const exception =
-      exceptions.find(
-        (item) =>
-          item.transaction_id ===
-          transactionId
-      )
-
-    if (exception) {
-      setSelected(exception)
-      return
-    }
-
-    const transaction =
-      transactions.find(
-        (item) =>
-          item.id === transactionId
-      )
-
-    if (transaction) {
-      const syntheticException =
-        {
-          transaction_id:
-            transaction.id,
-
-          exception_type:
-            (transaction as any)
-              .exceptionType ?? 'NONE',
-
-          difference:
-            Number(
-              (transaction as any)
-                .difference ?? 0
-            ),
-
-          expected_settlement:
-            Number(
-              (transaction as any)
-                .expectedAmount ??
-                transactionExpectedAmount(
-                  transaction
-                )
-            ),
-
-          actual_settlement:
-            Number(
-              (transaction as any)
-                .actualAmount ??
-                transactionAmount(
-                  transaction
-                )
-            ),
-
-          refund_amount:
-            Number(
-              (transaction as any)
-                .refundAmount ?? 0
-            ),
-
-          settlement_status:
-            (transaction as any)
-              .settlementStatus ??
-            'unknown',
-        }
-
-      setSelected(
-        syntheticException
-      )
+  const handleOpenException = (exc: BackendException) => {
+    const fullTx = transactions.find((t) => t.id === exc.transaction_id)
+    if (fullTx) {
+      setSelectedTransaction(fullTx)
+    } else {
+      // Synthesize transaction record if not found
+      setSelectedTransaction({
+        id: exc.transaction_id,
+        amount: formatCurrency(exc.actual_settlement),
+        expectedAmount: exc.expected_settlement,
+        actualAmount: exc.actual_settlement,
+        difference: exc.difference,
+        refundAmount: exc.refund_amount,
+        fee: exc.fee,
+        tax: exc.tax,
+        counterparty: `${exc.payment_method || 'Payment'} Processor`,
+        rail: exc.payment_method || 'CARD',
+        status: 'Exception',
+        reason: readableException(exc.exception_type),
+        date: exc.payment_date || 'Today',
+        paymentDate: exc.payment_date,
+        settlementDate: exc.settlement_date,
+        risk: exc.exception_type === 'DUPLICATE' || exc.exception_type === 'MISSING_SETTLEMENT' ? 'High' : 'Medium',
+        exceptionType: exc.exception_type,
+        settlementStatus: exc.settlement_status,
+      })
     }
   }
 
+  const handleSimulateCounterfactual = (transactionId: string) => {
+    setCounterfactualTargetId(transactionId)
+    setActive('Counterfactuals')
+  }
 
-  /* =======================================================
-     LOADING
-  ======================================================= */
+  // Dynamic settlement status health summary for Overview
+  const settlementHealthSummary = useMemo(() => {
+    if (matchRate >= 90) {
+      return `Settlement health is optimal — ${matchRate.toFixed(1)}% match rate across ${totalRecords} records.`
+    }
+    if (matchRate >= 50) {
+      return `Settlement health is stable — ${matchRate.toFixed(1)}% match rate with ${formatCurrency(unreconciledAmount)} at-risk capital across ${totalExceptions} items requiring action.`
+    }
+    return `Settlement attention required — ${totalExceptions} exceptions identified representing ${formatCurrency(unreconciledAmount)} financial exposure.`
+  }, [matchRate, totalRecords, unreconciledAmount, totalExceptions])
 
-  if (loading) {
+  // If authenticating, show clean loading skeleton
+  if (authLoading) {
     return (
-      <div className="app-shell">
-        <main
-          className="main"
-          style={{
-            display: 'grid',
-            placeItems: 'center',
-            minHeight: '100vh',
-          }}
-        >
-          <div
-            style={{
-              textAlign: 'center',
-            }}
-          >
-            <RefreshCw
-              className="spin"
-              size={32}
-            />
-
-            <p
-              style={{
-                marginTop: 12,
-              }}
-            >
-              Loading reconciliation
-              data...
-            </p>
-          </div>
-        </main>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full spin mx-auto" />
+          <p className="text-xs text-slate-500 font-medium">Verifying treasury session...</p>
+        </div>
       </div>
     )
   }
 
-
-  /* =======================================================
-     ERROR
-  ======================================================= */
-
-  if (error) {
-    return (
-      <div className="app-shell">
-        <main
-          className="main"
-          style={{
-            display: 'grid',
-            placeItems: 'center',
-            minHeight: '100vh',
-          }}
-        >
-          <div
-            className="panel"
-            style={{
-              padding: 40,
-              textAlign: 'center',
-            }}
-          >
-            <AlertTriangle
-              size={40}
-              style={{
-                marginBottom: 15,
-              }}
-            />
-
-            <h2>
-              Backend disconnected
-            </h2>
-
-            <p
-              style={{
-                margin:
-                  '10px 0 20px',
-              }}
-            >
-              {error}
-            </p>
-
-            <button
-              className="primary"
-              onClick={loadDashboard}
-            >
-              <RefreshCw size={16} />
-              Retry connection
-            </button>
-          </div>
-        </main>
-      </div>
-    )
+  // If unauthenticated, show enterprise Login / Signup screen
+  if (!isAuthenticated || !user) {
+    return <AuthScreen />
   }
 
-
-  /* =======================================================
-     RENDER
-  ======================================================= */
+  const dynamicGreeting = getGreeting(user?.name)
 
   return (
     <div className="app-shell">
+      {/* Persistent Enterprise Sidebar */}
+      <Sidebar
+        active={active}
+        setActive={(s) => {
+          setActive(s)
+          setGlobalQuery('')
+        }}
+        totalExceptions={totalExceptions}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
 
-      {/* ===================================================
-          SIDEBAR
-      =================================================== */}
+      <div className="main-wrapper">
+        {/* Top Command & Search Bar */}
+        <TopHeader
+          active={active}
+          query={globalQuery}
+          setQuery={setGlobalQuery}
+          onSync={() => loadData(false)}
+          isSyncing={isSyncing}
+          onOpenMobile={() => setMobileOpen(true)}
+        />
 
-      <aside className="sidebar">
-
-        <div className="brand">
-
-          <div className="brand-mark">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M18.5 7.5C17.15 5.8 15.05 4.75 12.7 4.75C8.65 4.75 5.5 7.95 5.5 12C5.5 16.05 8.65 19.25 12.7 19.25C15.05 19.25 17.15 18.2 18.5 16.5"
-                stroke="white"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-              />
-
-              <path
-                d="M14.5 12H20"
-                stroke="white"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-
-          <div>
-            <strong>
-              Counterfactual
-            </strong>
-
-            <small>
-              Settlement intelligence
-            </small>
-          </div>
-
-        </div>
-
-
-        <button className="workspace">
-          Acme Treasury
-          <ChevronDown size={15} />
-        </button>
-
-
-        <nav>
-          {[
-            {
-              label: 'Overview',
-              icon: LayoutDashboard,
-            },
-            {
-              label: 'Transactions',
-              icon: Activity,
-            },
-            {
-              label: 'Exceptions',
-              icon: AlertTriangle,
-            },
-            {
-              label: 'Counterfactuals',
-              icon: Sparkles,
-            },
-            {
-              label: 'Reports',
-              icon: BarChart3,
-            },
-          ].map(
-            ({
-              label,
-              icon: Icon,
-            }) => (
-              <button
-                key={label}
-                className={
-                  active === label
-                    ? 'nav-item active'
-                    : 'nav-item'
-                }
-                onClick={() => {
-                  setActive(label)
-                  setQuery('')
-                }}
-              >
-                <Icon size={18} />
-
-                {label}
-
-                {label ===
-                  'Exceptions' && (
-                  <b>
-                    {totalExceptions}
-                  </b>
-                )}
-              </button>
-            )
-          )}
-        </nav>
-
-
-        <div className="side-bottom">
-
-          <button className="nav-item">
-            <Settings size={18} />
-            Settings
-          </button>
-
-          <button className="user">
-
-            <span>
-              AM
-            </span>
-
-            <div>
-              <strong>
-                Alex Morgan
-              </strong>
-
-              <small>
-                Administrator
-              </small>
-            </div>
-
-            <MoreHorizontal
-              size={17}
+        {/* Main Content Workspace */}
+        <main className="content-container">
+          {loading ? (
+            <DashboardSkeleton />
+          ) : error ? (
+            <EmptyState
+              type="error"
+              title="Unable to connect to reconciliation engine"
+              description={error}
+              actionLabel="Retry Connection"
+              onAction={() => loadData(true)}
             />
-
-          </button>
-
-        </div>
-
-      </aside>
-
-
-      {/* ===================================================
-          MAIN
-      =================================================== */}
-
-      <main className="main">
-
-        {/* TOPBAR */}
-
-        <header className="topbar">
-
-          <button className="mobile-menu">
-            <Menu size={20} />
-          </button>
-
-
-          <div className="search">
-
-            <Search size={17} />
-
-            <input
-              placeholder={
-                active ===
-                'Transactions'
-                  ? 'Search transactions...'
-                  : active ===
-                      'Exceptions'
-                    ? 'Search exceptions...'
-                    : 'Search transactions, counterparties...'
-              }
-              value={query}
-              onChange={(event) =>
-                setQuery(
-                  event.target.value
-                )
-              }
-            />
-
-            <kbd>
-              ⌘ K
-            </kbd>
-
-          </div>
-
-
-          <div className="top-actions">
-
-            <button aria-label="Help">
-              <CircleHelp size={19} />
-            </button>
-
-            <button
-              aria-label="Notifications"
-            >
-              <Bell size={19} />
-              <i />
-            </button>
-
-            <div className="avatar">
-              AM
-            </div>
-
-          </div>
-
-        </header>
-
-
-        {/* =================================================
-            CONTENT
-        ================================================= */}
-
-        <div className="content">
-
-
-          {/* =================================================
-              OVERVIEW
-          ================================================= */}
-
-          {active ===
-            'Overview' && (
+          ) : (
             <>
-
-              <div className="page-heading">
-
-                <div>
-
-                  <p className="eyebrow">
-                    MONDAY, MAY 6, 2025
-                  </p>
-
-                  <h1>
-                    Good morning, Alex
-                  </h1>
-
-                  <p className="subhead">
-                    Monitor settlement
-                    health and resolve
-                    exceptions before
-                    they become losses.
-                  </p>
-
-                </div>
-
-
-                <button
-                  className="primary"
-                  onClick={
-                    loadDashboard
-                  }
-                >
-                  <RefreshCw
-                    size={16}
-                  />
-                  Sync data
-                </button>
-
-              </div>
-
-
-              {/* KPI CARDS */}
-
-              <section className="kpis">
-
-                <div className="metric">
-
-                  <span>
-                    Net settlement volume
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      metrics.expected_total ??
-                        0
-                    )}
-                  </strong>
-
-                  <em>
-                    <TrendingUp
-                      size={14}
-                    />
-                    Live data
-
-                    <small>
-                      from reconciliation
-                      engine
-                    </small>
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Reconciled today
-                  </span>
-
-                  <strong>
-                    {(
-                      metrics.match_rate ??
-                      0
-                    ).toFixed(1)}
-                    %
-                  </strong>
-
-                  <em>
-                    <TrendingUp
-                      size={14}
-                    />
-                    Reconciliation rate
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Open exceptions
-                  </span>
-
-                  <strong>
-                    {metrics.exception_records ??
-                      totalExceptions}
-                  </strong>
-
-                  <em className="negative">
-                    <AlertTriangle
-                      size={14}
-                    />
-                    Requires attention
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    At-risk capital
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Math.abs(
-                        metrics.unreconciled_amount ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                  <em className="negative">
-                    <AlertTriangle
-                      size={14}
-                    />
-                    Unreconciled amount
-                  </em>
-
-                </div>
-
-              </section>
-
-
-              {/* CHART + BREAKDOWN */}
-
-              <section className="grid-two">
-
-                <div className="panel chart-panel">
-
-                  <div className="panel-head">
-
+              {/* =========================================================
+                  TAB 1: OVERVIEW
+              ========================================================= */}
+              {active === 'Overview' && (
+                <div className="space-y-6">
+                  {/* Hero Header */}
+                  <div className="page-header">
                     <div>
-                      <h2>
-                        Settlement performance
-                      </h2>
-
-                      <p>
-                        Expected vs actual
-                        settlement volume
-                      </p>
+                      <span className="eyebrow">Settlement Operations</span>
+                      <h1 className="page-title">{dynamicGreeting}</h1>
+                      <p className="page-subhead">{settlementHealthSummary}</p>
                     </div>
 
-                    <button className="select">
-                      Last 14 days
-                      <ChevronDown
-                        size={15}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => loadData(false)}
+                        disabled={isSyncing}
+                        className="btn btn-primary"
+                      >
+                        <RefreshCw size={15} className={isSyncing ? 'spin' : ''} />
+                        <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Enterprise KPI Cards */}
+                  <div className="kpi-grid">
+                    <MetricCard
+                      label="Net Settlement Volume"
+                      value={formatCurrency(expectedTotal)}
+                      subtitle="Total expected settlement volume"
+                      badgeText="Live Engine Feed"
+                      badgeTone="positive"
+                      tone="indigo"
+                      tooltip="Total expected settlement calculated from all processed transactions"
+                    />
+
+                    <MetricCard
+                      label="Reconciliation Rate"
+                      value={`${matchRate.toFixed(1)}%`}
+                      subtitle={`${metrics.matched_records ?? 0} of ${totalRecords} matched`}
+                      badgeText="Batch Reconciled"
+                      badgeTone="positive"
+                      tone="green"
+                      tooltip="Percentage of transactions matching expected bank settlement"
+                    />
+
+                    <MetricCard
+                      label="Open Exceptions"
+                      value={String(totalExceptions)}
+                      subtitle="Items requiring resolution"
+                      badgeText="Requires Attention"
+                      badgeTone="negative"
+                      tone="amber"
+                      tooltip="Transactions with missing, delayed, duplicate, or fee discrepancies"
+                    />
+
+                    <MetricCard
+                      label="At-Risk Capital"
+                      value={formatCurrency(unreconciledAmount)}
+                      subtitle="Cumulative variance exposure"
+                      badgeText="Unreconciled"
+                      badgeTone="negative"
+                      tone="red"
+                      tooltip="Net financial exposure across all unmatched records"
+                    />
+                  </div>
+
+                  {/* Chart + Exception Breakdown Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="lg:col-span-7">
+                      <SettlementChart
+                        transactions={transactions}
+                        expectedTotal={expectedTotal}
+                        actualTotal={actualTotal}
+                        unreconciledAmount={unreconciledAmount}
                       />
-                    </button>
+                    </div>
 
+                    <div className="lg:col-span-5">
+                      <ExceptionBreakdown
+                        exceptions={exceptions}
+                        totalExceptions={totalExceptions}
+                        onSelectType={(type) => {
+                          setFilters((prev) => ({ ...prev, exceptionType: type, status: 'Exception' }))
+                          setActive('Transactions')
+                        }}
+                      />
+                    </div>
                   </div>
 
-
-                  <div className="chart-meta">
-
-                    <strong>
-                      {formatCompactCurrency(
-                        metrics.expected_total ??
-                          0
-                      )}
-                    </strong>
-
-                    <span>
-                      Expected volume
-                    </span>
-
-                    <strong className="muted-value">
-                      {formatCompactCurrency(
-                        metrics.actual_total ??
-                          0
-                      )}
-                    </strong>
-
-                    <span>
-                      Actual volume
-                    </span>
-
-                  </div>
-
-
-                  <MiniBars
-                    exceptions={
-                      exceptions
-                    }
+                  {/* What Needs Attention Queue */}
+                  <AttentionQueue
+                    exceptions={exceptions}
+                    onInspect={handleOpenException}
+                    onSimulate={handleSimulateCounterfactual}
+                    onViewAll={() => setActive('Exceptions')}
                   />
 
-
-                  <div className="chart-axis">
-                    <span>
-                      Apr 23
-                    </span>
-                    <span>
-                      Apr 27
-                    </span>
-                    <span>
-                      May 1
-                    </span>
-                    <span>
-                      May 6
-                    </span>
-                  </div>
-
-                </div>
-
-
-                <div className="panel">
-
-                  <div className="panel-head">
-
-                    <div>
-
-                      <h2>
-                        Exception breakdown
-                      </h2>
-
-                      <p>
-                        {totalExceptions}{' '}
-                        open items
+                  {/* Counterfactual Callout Banner */}
+                  <div className="p-6 bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={16} className="text-indigo-300" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
+                          AI Counterfactual Intelligence
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-white">
+                        Understand the financial consequences of every resolution decision
+                      </h3>
+                      <p className="text-xs text-slate-300 max-w-xl">
+                        Simulate gateway batch recoveries, excess duplicate clawbacks, and timing reconciliations with deterministic AI explanations.
                       </p>
-
                     </div>
 
                     <button
-                      className="icon-btn"
-                      aria-label="Filter"
+                      onClick={() => setActive('Counterfactuals')}
+                      className="btn bg-white text-indigo-900 hover:bg-indigo-50 border-none font-bold text-xs shrink-0"
                     >
-                      <Filter
-                        size={17}
-                      />
+                      <span>Open Counterfactual Studio</span>
+                      <ArrowRight size={14} />
                     </button>
+                  </div>
+                </div>
+              )}
 
+              {/* =========================================================
+                  TAB 2: TRANSACTIONS
+              ========================================================= */}
+              {active === 'Transactions' && (
+                <div className="space-y-6">
+                  <div className="page-header">
+                    <div>
+                      <span className="eyebrow">Ledger Operations</span>
+                      <h1 className="page-title">Transactions Workspace</h1>
+                      <p className="page-subhead">
+                        Inspect all payment rails, verify expected amounts, and track settlement credits.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => loadData(false)}
+                      disabled={isSyncing}
+                      className="btn btn-primary"
+                    >
+                      <RefreshCw size={15} className={isSyncing ? 'spin' : ''} />
+                      <span>{isSyncing ? 'Syncing...' : 'Sync Engine'}</span>
+                    </button>
                   </div>
 
+                  {/* Multi-facet Filter Bar */}
+                  <TransactionFilters
+                    filters={filters}
+                    setFilters={setFilters}
+                    totalCount={transactions.length}
+                    filteredCount={filteredTransactions.length}
+                  />
 
-                  <div className="donut-wrap">
+                  {/* Enterprise Table */}
+                  <TransactionTable
+                    transactions={filteredTransactions}
+                    onSelect={handleOpenTransaction}
+                    onSimulate={handleSimulateCounterfactual}
+                    pageSize={12}
+                  />
+                </div>
+              )}
 
-                    <div
-                      className="donut"
-                      style={{
-                        background:
-                          donutBackground,
-                      }}
+              {/* =========================================================
+                  TAB 3: EXCEPTIONS
+              ========================================================= */}
+              {active === 'Exceptions' && (
+                <div className="space-y-6">
+                  <div className="page-header">
+                    <div>
+                      <span className="eyebrow">Reconciliation Exceptions</span>
+                      <h1 className="page-title">Exception Queue</h1>
+                      <p className="page-subhead">
+                        {totalExceptions} transactions with identified discrepancies requiring treasury operator review.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => loadData(false)}
+                      disabled={isSyncing}
+                      className="btn btn-primary"
                     >
-                      <div>
+                      <RefreshCw size={15} className={isSyncing ? 'spin' : ''} />
+                      <span>{isSyncing ? 'Syncing...' : 'Sync Engine'}</span>
+                    </button>
+                  </div>
 
-                        <strong>
-                          {totalExceptions}
-                        </strong>
-
-                        <span>
-                          open
+                  {/* KPI Bar for Exceptions */}
+                  <div className="kpi-grid">
+                    <div className="kpi-card tone-red">
+                      <div className="kpi-label">Open Exceptions</div>
+                      <div className="kpi-value tabular-nums">{totalExceptions}</div>
+                      <div className="kpi-footer">
+                        <span className="kpi-badge-negative">
+                          Requires Action
                         </span>
-
                       </div>
                     </div>
 
+                    <div className="kpi-card tone-red">
+                      <div className="kpi-label">At-Risk Capital</div>
+                      <div className="kpi-value tabular-nums text-rose-600">
+                        {formatCurrency(unreconciledAmount)}
+                      </div>
+                      <div className="kpi-footer">
+                        <span className="kpi-badge-negative">Net discrepancy</span>
+                      </div>
+                    </div>
 
-                    <div className="legend">
-
-                      {exceptionBreakdown.map(
-                        (
-                          item,
-                          index
-                        ) => {
-
-                          const dots = [
-                            'red',
-                            'orange',
-                            'blue',
-                            'purple',
-                            'green',
-                          ]
-
-                          return (
-                            <span
-                              key={
-                                item.label
-                              }
-                            >
-                              <i
-                                className={`dot ${
-                                  dots[
-                                    index %
-                                      dots.length
-                                  ]
-                                }`}
-                              />
-
-                              {
-                                item.label
-                              }
-
-                              <b>
-                                {
-                                  item.count
-                                }
-                              </b>
-                            </span>
-                          )
+                    <div className="kpi-card tone-amber">
+                      <div className="kpi-label">High Severity Items</div>
+                      <div className="kpi-value tabular-nums">
+                        {
+                          exceptions.filter(
+                            (e) =>
+                              e.exception_type === 'MISSING_SETTLEMENT' ||
+                              e.exception_type === 'DUPLICATE' ||
+                              e.exception_type === 'DELAYED_SETTLEMENT'
+                          ).length
                         }
-                      )}
-
+                      </div>
+                      <div className="kpi-footer">
+                        <span className="kpi-badge-neutral">High priority</span>
+                      </div>
                     </div>
 
-                  </div>
-
-                </div>
-
-              </section>
-
-
-              {/* RECENT ACTIVITY */}
-
-              <section className="panel table-panel">
-
-                <div className="panel-head">
-
-                  <div>
-
-                    <h2>
-                      Recent activity
-                    </h2>
-
-                    <p>
-                      Transactions processed
-                      by the reconciliation
-                      engine
-                    </p>
-
-                  </div>
-
-
-                  <button className="secondary">
-                    <SlidersHorizontal
-                      size={16}
-                    />
-                    Filters
-                  </button>
-
-                </div>
-
-
-                <div className="table-wrap">
-
-                  <table>
-
-                    <thead>
-
-                      <tr>
-                        <th>
-                          Transaction
-                        </th>
-
-                        <th>
-                          Counterparty
-                        </th>
-
-                        <th>
-                          Amount
-                        </th>
-
-                        <th>
-                          Type
-                        </th>
-
-                        <th>
-                          Status
-                        </th>
-
-                        <th>
-                          Difference
-                        </th>
-
-                        <th />
-                      </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                      {filteredTransactions
-                        .slice(0, 10)
-                        .map(
-                          (
-                            transaction
-                          ) => (
-
-                            <tr
-                              key={
-                                transaction.id
-                              }
-                              onClick={() =>
-                                openTransaction(
-                                  transaction.id
-                                )
-                              }
-                              style={{
-                                cursor:
-                                  'pointer',
-                              }}
-                            >
-
-                              <td>
-
-                                <strong>
-                                  {
-                                    transaction.id
-                                  }
-                                </strong>
-
-                                <small>
-                                  {transaction.exceptionType ===
-                                  'NONE'
-                                    ? 'Successfully reconciled'
-                                    : readableException(
-                                        transaction.exceptionType ??
-                                          'UNKNOWN'
-                                      )}
-                                </small>
-
-                              </td>
-
-
-                              <td>
-                                Settlement
-                                processor
-                              </td>
-
-
-                              <td className="amount">
-
-                                {formatCurrency(
-                                  transactionAmount(
-                                    transaction
-                                  )
-                                )}
-
-                              </td>
-
-
-                              <td>
-
-                                <span className="rail">
-                                  Settlement
-                                </span>
-
-                              </td>
-
-
-                              <td>
-
-                                <Status>
-                                  {
-                                    transaction.status
-                                  }
-                                </Status>
-
-                              </td>
-
-
-                              <td className="date">
-
-                                {formatCurrency(
-                                  Math.abs(
-                                    Number(
-                                      (transaction as any)
-                                        .difference ??
-                                        0
-                                    )
-                                  )
-                                )}
-
-                              </td>
-
-
-                              <td>
-                                <MoreHorizontal
-                                  size={17}
-                                />
-                              </td>
-
-                            </tr>
-
-                          )
-                        )}
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-
-                <div className="table-foot">
-
-                  <span>
-                    Showing{' '}
-                    {Math.min(
-                      filteredTransactions.length,
-                      10
-                    )}{' '}
-                    of{' '}
-                    {transactions.length}{' '}
-                    transactions
-                  </span>
-
-                  <button
-                    onClick={() =>
-                      setActive(
-                        'Transactions'
-                      )
-                    }
-                  >
-                    View all transactions →
-                  </button>
-
-                </div>
-
-              </section>
-
-
-              {/* BOTTOM GRID */}
-
-              <section className="bottom-grid">
-
-                <div className="panel insight">
-
-                  <div className="insight-icon">
-                    <Sparkles
-                      size={18}
-                    />
-                  </div>
-
-                  <div>
-
-                    <p className="eyebrow">
-                      COUNTERFACTUAL INSIGHT
-                    </p>
-
-                    <h2>
-                      Resolve exceptions
-                      with confidence
-                    </h2>
-
-                    <p>
-                      See the financial
-                      impact of every
-                      decision before you
-                      take action.
-                      Counterfactual
-                      analysis is ready
-                      for{' '}
-                      {totalExceptions}{' '}
-                      open exceptions.
-                    </p>
-
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        setActive(
-                          'Counterfactuals'
-                        )
-                      }
-                    >
-                      Explore analysis →
-                    </button>
-
-                  </div>
-
-                </div>
-
-
-                <div className="panel health">
-
-                  <div className="panel-head">
-
-                    <div>
-
-                      <h2>
-                        System health
-                      </h2>
-
-                      <p>
-                        All systems operational
-                      </p>
-
+                    <div className="kpi-card tone-indigo">
+                      <div className="kpi-label">Exception Rate</div>
+                      <div className="kpi-value tabular-nums">
+                        {(metrics.exception_rate ?? 0).toFixed(1)}%
+                      </div>
+                      <div className="kpi-footer">
+                        <span className="kpi-badge-neutral">Of total batch volume</span>
+                      </div>
                     </div>
-
-                    <CheckCircle2
-                      className="check"
-                      size={20}
-                    />
-
                   </div>
 
-
-                  <div className="health-row">
-
-                    <span>
-                      <Database
-                        size={15}
-                      />
-                      Bank connections
-                    </span>
-
-                    <b>
-                      18 / 18
-                    </b>
-
-                  </div>
-
-
-                  <div className="health-row">
-
-                    <span>
-                      <ShieldCheck
-                        size={15}
-                      />
-                      Reconciliation
-                      engine
-                    </span>
-
-                    <b>
-                      99.98%
-                    </b>
-
-                  </div>
-
+                  {/* Exception Table */}
+                  <TransactionTable
+                    transactions={filteredExceptionsList}
+                    onSelect={handleOpenTransaction}
+                    onSimulate={handleSimulateCounterfactual}
+                    pageSize={12}
+                  />
                 </div>
+              )}
 
-              </section>
+              {/* =========================================================
+                  TAB 4: COUNTERFACTUALS (HERO FEATURE)
+              ========================================================= */}
+              {active === 'Counterfactuals' && (
+                <CounterfactualStudio
+                  exceptions={exceptions}
+                  selectedTxId={counterfactualTargetId}
+                  onSelectTxId={setCounterfactualTargetId}
+                  onNavigateToTransactions={() => setActive('Transactions')}
+                />
+              )}
 
+              {/* =========================================================
+                  TAB 5: REPORTS & AUDIT
+              ========================================================= */}
+              {active === 'Reports' && (
+                <ReportAnalytics
+                  metrics={metrics}
+                  exceptions={exceptions}
+                  transactions={transactions}
+                  onRefresh={() => loadData(false)}
+                  isSyncing={isSyncing}
+                />
+              )}
             </>
           )}
-
-
-          {/* =================================================
-              TRANSACTIONS
-          ================================================= */}
-
-          {active ===
-            'Transactions' && (
-            <>
-
-              <div className="page-heading">
-
-                <div>
-
-                  <p className="eyebrow">
-                    RECONCILIATION
-                  </p>
-
-                  <h1>
-                    Transactions
-                  </h1>
-
-                  <p className="subhead">
-                    View all transactions
-                    processed by the
-                    reconciliation engine.
-                  </p>
-
-                </div>
-
-
-                <button
-                  className="primary"
-                  onClick={
-                    loadDashboard
-                  }
-                >
-                  <RefreshCw
-                    size={16}
-                  />
-                  Sync data
-                </button>
-
-              </div>
-
-
-              <section className="kpis">
-
-                <div className="metric">
-                  <span>
-                    Total transactions
-                  </span>
-
-                  <strong>
-                    {transactions.length}
-                  </strong>
-
-                  <em>
-                    <Activity
-                      size={14}
-                    />
-                    Backend records
-                  </em>
-                </div>
-
-
-                <div className="metric">
-                  <span>
-                    Reconciled
-                  </span>
-
-                  <strong>
-                    {
-                      transactions.filter(
-                        (item) =>
-                          item.status ===
-                          'Reconciled'
-                      ).length
-                    }
-                  </strong>
-
-                  <em>
-                    <CheckCircle2
-                      size={14}
-                    />
-                    Successfully matched
-                  </em>
-                </div>
-
-
-                <div className="metric">
-                  <span>
-                    Exceptions
-                  </span>
-
-                  <strong>
-                    {totalExceptions}
-                  </strong>
-
-                  <em className="negative">
-                    <AlertTriangle
-                      size={14}
-                    />
-                    Requires attention
-                  </em>
-                </div>
-
-
-                <div className="metric">
-                  <span>
-                    Expected volume
-                  </span>
-
-                  <strong>
-                    {formatCompactCurrency(
-                      metrics.expected_total ??
-                        0
-                    )}
-                  </strong>
-
-                  <em>
-                    Settlement volume
-                  </em>
-                </div>
-
-              </section>
-
-
-              <section className="panel table-panel">
-
-                <div className="panel-head">
-
-                  <div>
-
-                    <h2>
-                      All transactions
-                    </h2>
-
-                    <p>
-                      {filteredTransactions.length}{' '}
-                      matching records
-                    </p>
-
-                  </div>
-
-
-                  <button className="secondary">
-                    <SlidersHorizontal
-                      size={16}
-                    />
-                    Filters
-                  </button>
-
-                </div>
-
-
-                <div className="table-wrap">
-
-                  <table>
-
-                    <thead>
-
-                      <tr>
-
-                        <th>
-                          Transaction
-                        </th>
-
-                        <th>
-                          Amount
-                        </th>
-
-                        <th>
-                          Expected
-                        </th>
-
-                        <th>
-                          Difference
-                        </th>
-
-                        <th>
-                          Exception
-                        </th>
-
-                        <th>
-                          Status
-                        </th>
-
-                        <th />
-
-                      </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                      {filteredTransactions.map(
-                        (
-                          transaction, index
-                        ) => (
-
-                          <tr
-                            key={
-                              `${transaction.id}-${index}`
-                            }
-                            onClick={() =>
-                              openTransaction(
-                                transaction.id
-                              )
-                            }
-                            style={{
-                              cursor:
-                                'pointer',
-                            }}
-                          >
-
-                            <td>
-
-                              <strong>
-                                {
-                                  transaction.id
-                                }
-                              </strong>
-
-                              <small>
-                                {
-                                  transaction.reason ??
-                                  'Settlement transaction'
-                                }
-                              </small>
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                transactionAmount(
-                                  transaction
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                transactionExpectedAmount(
-                                  transaction
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Math.abs(
-                                  Number(
-                                    (transaction as any)
-                                      .difference ??
-                                      0
-                                  )
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td>
-
-                              {transaction.exceptionType ===
-                              'NONE'
-                                ? '—'
-                                : readableException(
-                                    transaction.exceptionType ??
-                                      'UNKNOWN'
-                                  )}
-
-                            </td>
-
-
-                            <td>
-
-                              <Status>
-                                {
-                                  transaction.status
-                                }
-                              </Status>
-
-                            </td>
-
-
-                            <td>
-                              <MoreHorizontal
-                                size={17}
-                              />
-                            </td>
-
-                          </tr>
-
-                        )
-                      )}
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-
-                <div className="table-foot">
-
-                  <span>
-                    Showing{' '}
-                    {
-                      filteredTransactions.length
-                    }{' '}
-                    of{' '}
-                    {transactions.length}{' '}
-                    transactions
-                  </span>
-
-                  <button
-                    onClick={() =>
-                      setQuery('')
-                    }
-                  >
-                    Clear search
-                  </button>
-
-                </div>
-
-              </section>
-
-            </>
-          )}
-
-
-          {/* =================================================
-              EXCEPTIONS
-          ================================================= */}
-
-          {active ===
-            'Exceptions' && (
-            <>
-
-              <div className="page-heading">
-
-                <div>
-
-                  <p className="eyebrow">
-                    RECONCILIATION
-                  </p>
-
-                  <h1>
-                    Exceptions
-                  </h1>
-
-                  <p className="subhead">
-                    Review and resolve
-                    transactions that could
-                    not be reconciled.
-                  </p>
-
-                </div>
-
-
-                <button
-                  className="primary"
-                  onClick={
-                    loadDashboard
-                  }
-                >
-                  <RefreshCw
-                    size={16}
-                  />
-                  Sync data
-                </button>
-
-              </div>
-
-
-              <section className="kpis">
-
-                <div className="metric">
-
-                  <span>
-                    Open exceptions
-                  </span>
-
-                  <strong>
-                    {totalExceptions}
-                  </strong>
-
-                  <em className="negative">
-                    <AlertTriangle
-                      size={14}
-                    />
-                    Requires attention
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    High priority
-                  </span>
-
-                  <strong>
-                    {
-                      exceptions.filter(
-                        (exception) =>
-                          exception.exception_type ===
-                            'MISSING_SETTLEMENT' ||
-                          exception.exception_type ===
-                            'DUPLICATE' ||
-                          exception.exception_type ===
-                            'DELAYED_SETTLEMENT'
-                      ).length
-                    }
-                  </strong>
-
-                  <em className="negative">
-                    High risk
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Exception rate
-                  </span>
-
-                  <strong>
-                    {(
-                      metrics.exception_rate ??
-                      0
-                    ).toFixed(1)}
-                    %
-                  </strong>
-
-                  <em>
-                    Reconciliation exceptions
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    At-risk capital
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Math.abs(
-                        metrics.unreconciled_amount ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                  <em className="negative">
-                    <AlertTriangle
-                      size={14}
-                    />
-                    Financial exposure
-                  </em>
-
-                </div>
-
-              </section>
-
-
-              <section className="panel table-panel">
-
-                <div className="panel-head">
-
-                  <div>
-
-                    <h2>
-                      Open exceptions
-                    </h2>
-
-                    <p>
-                      {
-                        filteredExceptions.length
-                      }{' '}
-                      transactions require
-                      attention
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <div className="table-wrap">
-
-                  <table>
-
-                    <thead>
-
-                      <tr>
-
-                        <th>
-                          Transaction
-                        </th>
-
-                        <th>
-                          Exception
-                        </th>
-
-                        <th>
-                          Expected
-                        </th>
-
-                        <th>
-                          Actual
-                        </th>
-
-                        <th>
-                          Difference
-                        </th>
-
-                        <th>
-                          Settlement
-                        </th>
-
-                        <th />
-
-                      </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                      {filteredExceptions.map(
-                        (
-                          exception
-                        ) => (
-
-                          <tr
-                            key={
-                              exception.transaction_id
-                            }
-                            onClick={() =>
-                              setSelected(
-                                exception
-                              )
-                            }
-                            style={{
-                              cursor:
-                                'pointer',
-                            }}
-                          >
-
-                            <td>
-
-                              <strong>
-                                {
-                                  exception.transaction_id
-                                }
-                              </strong>
-
-                              <small>
-                                Click to investigate
-                              </small>
-
-                            </td>
-
-
-                            <td>
-
-                              <Status>
-                                Exception
-                              </Status>
-
-                              <div
-                                style={{
-                                  marginTop:
-                                    6,
-                                }}
-                              >
-                                {readableException(
-                                  exception.exception_type
-                                )}
-                              </div>
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Number(
-                                  exception.expected_settlement ??
-                                    0
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Number(
-                                  exception.actual_settlement ??
-                                    0
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Math.abs(
-                                  Number(
-                                    exception.difference ??
-                                      0
-                                  )
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td>
-                              {
-                                exception.settlement_status
-                              }
-                            </td>
-
-
-                            <td>
-                              <MoreHorizontal
-                                size={17}
-                              />
-                            </td>
-
-                          </tr>
-
-                        )
-                      )}
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-              </section>
-
-            </>
-          )}
-
-
-          {/* =================================================
-              COUNTERFACTUALS
-          ================================================= */}
-
-          {active ===
-            'Counterfactuals' && (
-            <>
-
-              <div className="page-heading">
-
-                <div>
-
-                  <p className="eyebrow">
-                    AI ANALYSIS
-                  </p>
-
-                  <h1>
-                    Counterfactuals
-                  </h1>
-
-                  <p className="subhead">
-                    Understand what would have
-                    happened if each exception
-                    had settled normally.
-                  </p>
-
-                </div>
-
-              </div>
-
-
-              <section className="kpis">
-
-                <div className="metric">
-
-                  <span>
-                    Exceptions analyzed
-                  </span>
-
-                  <strong>
-                    {totalExceptions}
-                  </strong>
-
-                  <em>
-                    <Sparkles
-                      size={14}
-                    />
-                    Ready for analysis
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Unreconciled amount
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Math.abs(
-                        metrics.unreconciled_amount ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                  <em className="negative">
-                    Financial exposure
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Exception rate
-                  </span>
-
-                  <strong>
-                    {(
-                      metrics.exception_rate ??
-                      0
-                    ).toFixed(1)}
-                    %
-                  </strong>
-
-                  <em>
-                    Current reconciliation
-                    rate
-                  </em>
-
-                </div>
-
-              </section>
-
-
-              <section className="panel table-panel">
-
-                <div className="panel-head">
-
-                  <div>
-
-                    <h2>
-                      Counterfactual analysis
-                    </h2>
-
-                    <p>
-                      Select an exception to
-                      inspect its financial
-                      impact.
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <div className="table-wrap">
-
-                  <table>
-
-                    <thead>
-
-                      <tr>
-
-                        <th>
-                          Transaction
-                        </th>
-
-                        <th>
-                          Exception
-                        </th>
-
-                        <th>
-                          Expected settlement
-                        </th>
-
-                        <th>
-                          Actual settlement
-                        </th>
-
-                        <th>
-                          Financial impact
-                        </th>
-
-                        <th />
-
-                      </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                      {exceptions.map(
-                        (
-                          exception
-                        ) => (
-
-                          <tr
-                            key={
-                              exception.transaction_id
-                            }
-                            onClick={() =>
-                              setSelected(
-                                exception
-                              )
-                            }
-                            style={{
-                              cursor:
-                                'pointer',
-                            }}
-                          >
-
-                            <td>
-
-                              <strong>
-                                {
-                                  exception.transaction_id
-                                }
-                              </strong>
-
-                            </td>
-
-
-                            <td>
-                              {
-                                readableException(
-                                  exception.exception_type
-                                )
-                              }
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Number(
-                                  exception.expected_settlement ??
-                                    0
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Number(
-                                  exception.actual_settlement ??
-                                    0
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td className="amount">
-
-                              {formatCurrency(
-                                Math.abs(
-                                  Number(
-                                    exception.difference ??
-                                      0
-                                  )
-                                )
-                              )}
-
-                            </td>
-
-
-                            <td>
-                              <Sparkles
-                                size={17}
-                              />
-                            </td>
-
-                          </tr>
-
-                        )
-                      )}
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-              </section>
-
-            </>
-          )}
-
-
-          {/* =================================================
-              REPORTS
-          ================================================= */}
-
-          {active ===
-            'Reports' && (
-            <>
-
-              <div className="page-heading">
-
-                <div>
-
-                  <p className="eyebrow">
-                    ANALYTICS
-                  </p>
-
-                  <h1>
-                    Reports
-                  </h1>
-
-                  <p className="subhead">
-                    Reconciliation performance
-                    and exception analytics.
-                  </p>
-
-                </div>
-
-
-                <button
-                  className="primary"
-                  onClick={
-                    loadDashboard
-                  }
-                >
-                  <RefreshCw
-                    size={16}
-                  />
-                  Refresh report
-                </button>
-
-              </div>
-
-
-              <section className="kpis">
-
-                <div className="metric">
-
-                  <span>
-                    Total records
-                  </span>
-
-                  <strong>
-                    {metrics.total_records ??
-                      transactions.length}
-                  </strong>
-
-                  <em>
-                    Processed
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Matched records
-                  </span>
-
-                  <strong>
-                    {metrics.matched_records ??
-                      0}
-                  </strong>
-
-                  <em>
-                    <CheckCircle2
-                      size={14}
-                    />
-                    Reconciled
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Match rate
-                  </span>
-
-                  <strong>
-                    {(
-                      metrics.match_rate ??
-                      0
-                    ).toFixed(2)}
-                    %
-                  </strong>
-
-                  <em>
-                    Reconciliation quality
-                  </em>
-
-                </div>
-
-
-                <div className="metric">
-
-                  <span>
-                    Unreconciled amount
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Math.abs(
-                        metrics.unreconciled_amount ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                  <em className="negative">
-                    At-risk capital
-                  </em>
-
-                </div>
-
-              </section>
-
-
-              <section className="grid-two">
-
-                <div className="panel">
-
-                  <div className="panel-head">
-
-                    <div>
-
-                      <h2>
-                        Exception distribution
-                      </h2>
-
-                      <p>
-                        Breakdown of detected
-                        reconciliation issues.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  <div className="legend">
-
-                    {exceptionBreakdown.length ===
-                    0 ? (
-                      <span>
-                        No exceptions detected.
-                      </span>
-                    ) : (
-                      exceptionBreakdown.map(
-                        (item) => (
-                          <span
-                            key={
-                              item.label
-                            }
-                          >
-                            {item.label}
-
-                            <b>
-                              {item.count}
-                            </b>
-                          </span>
-                        )
-                      )
-                    )}
-
-                  </div>
-
-                </div>
-
-
-                <div className="panel">
-
-                  <div className="panel-head">
-
-                    <div>
-
-                      <h2>
-                        Settlement totals
-                      </h2>
-
-                      <p>
-                        Expected versus actual
-                        settlement volume.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  <div className="chart-meta">
-
-                    <strong>
-                      {formatCurrency(
-                        metrics.expected_total ??
-                          0
-                      )}
-                    </strong>
-
-                    <span>
-                      Expected
-                    </span>
-
-                    <strong className="muted-value">
-                      {formatCurrency(
-                        metrics.actual_total ??
-                          0
-                      )}
-                    </strong>
-
-                    <span>
-                      Actual
-                    </span>
-
-                  </div>
-
-
-                  <MiniBars
-                    exceptions={
-                      exceptions
-                    }
-                  />
-
-                </div>
-
-              </section>
-
-
-              <section className="panel table-panel">
-
-                <div className="panel-head">
-
-                  <div>
-
-                    <h2>
-                      Report summary
-                    </h2>
-
-                    <p>
-                      Current reconciliation
-                      engine results.
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <div className="table-wrap">
-
-                  <table>
-
-                    <tbody>
-
-                      <tr>
-                        <td>
-                          Total records
-                        </td>
-
-                        <td>
-                          {metrics.total_records ??
-                            transactions.length}
-                        </td>
-                      </tr>
-
-
-                      <tr>
-                        <td>
-                          Matched records
-                        </td>
-
-                        <td>
-                          {metrics.matched_records ??
-                            0}
-                        </td>
-                      </tr>
-
-
-                      <tr>
-                        <td>
-                          Exception records
-                        </td>
-
-                        <td>
-                          {metrics.exception_records ??
-                            totalExceptions}
-                        </td>
-                      </tr>
-
-
-                      <tr>
-                        <td>
-                          Expected total
-                        </td>
-
-                        <td>
-                          {formatCurrency(
-                            metrics.expected_total ??
-                              0
-                          )}
-                        </td>
-                      </tr>
-
-
-                      <tr>
-                        <td>
-                          Actual total
-                        </td>
-
-                        <td>
-                          {formatCurrency(
-                            metrics.actual_total ??
-                              0
-                          )}
-                        </td>
-                      </tr>
-
-
-                      <tr>
-                        <td>
-                          Unreconciled amount
-                        </td>
-
-                        <td>
-                          {formatCurrency(
-                            Math.abs(
-                              metrics.unreconciled_amount ??
-                                0
-                            )
-                          )}
-                        </td>
-                      </tr>
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-              </section>
-
-            </>
-          )}
-
-        </div>
-
-      </main>
-
-
-      {/* ===================================================
-          INVESTIGATION PANEL
-      =================================================== */}
-
-      <Sheet
-        open={!!selected}
-        onOpenChange={() => {
-          setSelected(null)
-          setAiDone(false)
-        }}
-      >
-
-        <SheetContent
-          className="investigation"
-        >
-
-          <SheetHeader>
-
-            <div className="sheet-kicker">
-
-              <span>
-                EXCEPTION
-              </span>
-
-              <Status>
-                Exception
-              </Status>
-
-            </div>
-
-
-            <SheetTitle>
-              Investigate transaction
-            </SheetTitle>
-
-
-            <SheetDescription>
-              {selected?.transaction_id}
-            </SheetDescription>
-
-          </SheetHeader>
-
-
-          {selected && (
-            <div className="sheet-body">
-
-              <div className="amount-hero">
-
-                <span>
-                  Expected settlement
-                </span>
-
-                <strong>
-                  {formatCurrency(
-                    Number(
-                      selected.expected_settlement ??
-                        0
-                    )
-                  )}
-                </strong>
-
-                <small>
-                  Actual:{' '}
-                  {formatCurrency(
-                    Number(
-                      selected.actual_settlement ??
-                        0
-                    )
-                  )}
-                </small>
-
-              </div>
-
-
-              <div className="why">
-
-                <div className="why-head">
-
-                  <AlertTriangle
-                    size={18}
-                  />
-
-                  <strong>
-                    Why this was flagged
-                  </strong>
-
-                </div>
-
-
-                <p>
-
-                  {readableException(
-                    selected.exception_type
-                  )}
-
-                  . The reconciliation
-                  engine detected a
-                  difference of{' '}
-
-                  {formatCurrency(
-                    Math.abs(
-                      Number(
-                        selected.difference ??
-                          0
-                      )
-                    )
-                  )}
-
-                  {' '}between the expected
-                  and actual settlement.
-
-                </p>
-
-              </div>
-
-
-              <div className="cf-card">
-
-                <div className="cf-title">
-
-                  <Sparkles
-                    size={17}
-                  />
-
-                  Counterfactual analysis
-
-                </div>
-
-
-                <div className="cf-row">
-
-                  <span>
-                    Expected settlement
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Number(
-                        selected.expected_settlement ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                </div>
-
-
-                <div className="cf-row">
-
-                  <span>
-                    Actual settlement
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Number(
-                        selected.actual_settlement ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                </div>
-
-
-                <div className="cf-row">
-
-                  <span>
-                    Financial impact
-                  </span>
-
-                  <strong className="negative-text">
-
-                    {formatCurrency(
-                      Math.abs(
-                        Number(
-                          selected.difference ??
-                            0
-                        )
-                      )
-                    )}
-
-                    {' '}exposure
-
-                  </strong>
-
-                </div>
-
-
-                <div className="cf-row">
-
-                  <span>
-                    Refund amount
-                  </span>
-
-                  <strong>
-                    {formatCurrency(
-                      Number(
-                        selected.refund_amount ??
-                          0
-                      )
-                    )}
-                  </strong>
-
-                </div>
-
-
-                {aiDone && (
-                  <div className="cf-row">
-
-                    <span>
-                      Recommended action
-                    </span>
-
-                    <strong>
-                      Review remittance
-                      details, then
-                      reconcile manually.
-                    </strong>
-
-                  </div>
-                )}
-
-              </div>
-
-
-              <button
-                className="primary full"
-                onClick={
-                  openExplanation
-                }
-                disabled={
-                  aiLoading
-                }
-              >
-
-                {aiLoading ? (
-                  <>
-                    <RefreshCw
-                      className="spin"
-                      size={16}
-                    />
-
-                    Generating
-                    explanation...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles
-                      size={16}
-                    />
-
-                    {aiDone
-                      ? 'Explanation generated'
-                      : 'Generate AI explanation'}
-                  </>
-                )}
-
-              </button>
-
-
-              <button
-                className="secondary full"
-                onClick={() => {
-                  setActive(
-                    'Transactions'
-                  )
-                  setSelected(null)
-                }}
-              >
-                Open transaction details
-              </button>
-
-            </div>
-          )}
-
-        </SheetContent>
-
-      </Sheet>
-
+        </main>
+      </div>
+
+      {/* Slide-out Financial Investigation Drawer */}
+      <TransactionDrawer
+        transaction={selectedTransaction}
+        open={!!selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+        onOpenCounterfactual={handleSimulateCounterfactual}
+      />
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <AuthProvider>
+      <DashboardApp />
+    </AuthProvider>
   )
 }
