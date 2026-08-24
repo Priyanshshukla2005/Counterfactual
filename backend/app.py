@@ -1,80 +1,192 @@
-from flask import Flask, jsonify
+import os
+import uuid
+from datetime import datetime, timezone
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 
 from reconciliation import reconcile
 from explanation_engine import generate_explanation
-from auth import auth_bp
-
+from counterfactual_engine import calculate_counterfactual, generate_multi_scenario_comparison
+from auth import auth_bp, require_auth, log_audit_event
+from database import (
+    init_database,
+    is_mongodb_live,
+    get_mongodb_error,
+    get_simulations_collection,
+    get_audit_events_collection,
+)
 
 app = Flask(__name__)
-CORS(app)
+
+# Production-configured CORS origin
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://localhost:3000")
+CORS(app, origins=[o.strip() for o in CORS_ORIGIN.split(",")], supports_credentials=True)
 
 app.register_blueprint(auth_bp)
 
+CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "counterfactual_phase1_transactions.csv")
 
-CSV_PATH = "data/counterfactual_phase1_transactions.csv"
+# Initialize database on startup
+try:
+    init_database(strict=False)
+except Exception:
+    pass
+
+
+# Global JSON error handlers (Never expose raw stack traces)
+@app.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": "Bad Request", "message": str(e)}), 400
+
+
+@app.errorhandler(401)
+def unauthorized(e):
+    return jsonify({"error": "Unauthorized", "message": "Authentication required."}), 401
+
+
+@app.errorhandler(403)
+def forbidden(e):
+    return jsonify({"error": "Forbidden", "message": "Access to this resource is denied."}), 403
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Not Found", "message": "Requested resource not found."}), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return jsonify({"error": "Internal Server Error", "message": "An unexpected server error occurred."}), 500
 
 
 @app.route("/")
 def home():
     return jsonify({
-        "name": "Counterfactual API",
-        "status": "running"
+        "name": "Counterfactual Fintech Intelligence API",
+        "version": "5.0.0",
+        "status": "running",
+        "mongodb": "connected" if is_mongodb_live() else "disconnected"
     })
 
 
-@app.route("/api/dashboard")
+@app.route("/api/health", methods=["GET"])
+def health():
+    """
+    Explicit Database Health Endpoint (Task 9).
+    Returns 200 OK when MongoDB is connected and 503 when disconnected.
+    """
+    db_name = os.getenv("MONGODB_DB_NAME", "counterfactual")
+    if is_mongodb_live():
+        return jsonify({
+            "status": "healthy",
+            "database": "mongodb",
+            "mongodb": "connected",
+            "database_name": db_name,
+            "api_version": "5.0.0"
+        }), 200
+    else:
+        err = get_mongodb_error() or "MongoDB is not reachable"
+        return jsonify({
+            "status": "unhealthy",
+            "database": "mongodb",
+            "mongodb": "disconnected",
+            "database_name": db_name,
+            "error": f"MongoDB Atlas connection failure: {err}",
+            "api_version": "5.0.0"
+        }), 503
+
+
+# ====================================================================
+# PROTECTED FINANCIAL & LEDGER ENDPOINTS
+# ====================================================================
+
+@app.route("/api/dashboard", methods=["GET"])
+@require_auth
 def dashboard():
+    """Returns aggregated settlement metrics and active exception items (Protected)."""
+    try:
+        results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+        exceptions = results[results["exception_type"] != "NONE"].copy()
+        exception_data = []
 
-    results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+        for _, row in exceptions.iterrows():
+            exception_data.append({
+                "transaction_id": str(row["transaction_id"]),
+                "order_id": str(row.get("order_id", "")),
+                "payment_id": str(row.get("payment_id", "")),
+                "customer_id": str(row.get("customer_id", "")),
+                "payment_date": str(row.get("payment_date", "")),
+                "payment_method": str(row.get("payment_method", "CARD")),
+                "exception_type": str(row["exception_type"]),
+                "difference": float(row["difference"]),
+                "expected_settlement": float(row["expected_settlement"]),
+                "actual_settlement": float(row["actual_settlement"]),
+                "refund_amount": float(row["refund_amount"]),
+                "fee": float(row.get("fee", 0)),
+                "tax": float(row.get("tax", 0)),
+                "settlement_status": str(row["settlement_status"]),
+                "settlement_date": str(row.get("settlement_date", "")),
+                "settlement_events": row.get("settlement_events", [])
+            })
 
-    exceptions = results[
-        results["exception_type"] != "NONE"
-    ].copy()
-
-    exception_data = []
-
-    for _, row in exceptions.iterrows():
-
-        exception_data.append({
-            "transaction_id": row["transaction_id"],
-            "exception_type": row["exception_type"],
-            "difference": float(row["difference"]),
-            "expected_settlement": float(
-                row["expected_settlement"]
-            ),
-            "actual_settlement": float(
-                row["actual_settlement"]
-            ),
-            "refund_amount": float(
-                row["refund_amount"]
-            ),
-            "settlement_status": row[
-                "settlement_status"
-            ]
+        return jsonify({
+            "metrics": metrics,
+            "exceptions": exception_data
         })
+    except Exception:
+        return jsonify({"error": "Unable to calculate dashboard metrics."}), 500
 
-    return jsonify({
-        "metrics": metrics,
-        "exceptions": exception_data
-    })
-@app.route("/api/transactions")
+
+@app.route("/api/transactions", methods=["GET"])
+@require_auth
 def transactions():
-    results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+    """Returns consolidated unique transaction entities (Protected)."""
+    try:
+        results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+        transaction_data = []
 
-    transaction_data = []
+        for _, row in results.iterrows():
+            transaction_data.append({
+                "transaction_id": str(row["transaction_id"]),
+                "order_id": str(row.get("order_id", "")),
+                "payment_id": str(row.get("payment_id", "")),
+                "customer_id": str(row.get("customer_id", "")),
+                "payment_date": str(row.get("payment_date", "")),
+                "payment_method": str(row.get("payment_method", "CARD")),
+                "status": "Reconciled" if str(row["exception_type"]) == "NONE" else "Exception",
+                "amount": float(row.get("amount", row.get("expected_settlement", 0))),
+                "settlement_date": str(row.get("settlement_date", "")),
+                "expected_settlement": float(row["expected_settlement"]),
+                "actual_settlement": float(row["actual_settlement"]),
+                "difference": float(row["difference"]),
+                "refund_amount": float(row["refund_amount"]),
+                "fee": float(row["fee"]),
+                "tax": float(row["tax"]),
+                "settlement_status": str(row["settlement_status"]),
+                "exception_type": str(row["exception_type"]),
+                "settlement_events": row.get("settlement_events", []),
+            })
 
-    for _, row in results.iterrows():
-        transaction_data.append({
+        return jsonify(transaction_data)
+    except Exception:
+        return jsonify({"error": "Unable to retrieve transaction ledger."}), 500
+
+
+@app.route("/api/counterfactual/<transaction_id>", methods=["GET"])
+@require_auth
+def counterfactual(transaction_id):
+    """Returns deterministic counterfactual explanation for an exception transaction (Protected)."""
+    try:
+        results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+        transaction = results[results["transaction_id"].astype(str) == str(transaction_id)]
+
+        if transaction.empty:
+            return jsonify({"error": "Transaction not found."}), 404
+
+        row = transaction.iloc[0]
+        exception = {
             "transaction_id": str(row["transaction_id"]),
-            "order_id": str(row.get("order_id", "")),
-            "payment_id": str(row.get("payment_id", "")),
-            "customer_id": str(row.get("customer_id", "")),
-            "payment_date": str(row.get("payment_date", "")),
-            "payment_method": str(row.get("payment_method", "CARD")),
-            "status": str(row.get("status", "captured")),
-            "amount": float(row.get("amount", row.get("actual_settlement", 0))),
-            "settlement_date": str(row.get("settlement_date", "")),
+            "exception_type": str(row["exception_type"]),
             "expected_settlement": float(row["expected_settlement"]),
             "actual_settlement": float(row["actual_settlement"]),
             "difference": float(row["difference"]),
@@ -82,60 +194,265 @@ def transactions():
             "fee": float(row["fee"]),
             "tax": float(row["tax"]),
             "settlement_status": str(row["settlement_status"]),
-            "exception_type": str(row["exception_type"]),
-        })
+            "confidence": 0.98 if str(row["exception_type"]) == "DUPLICATE" else 0.95,
+        }
 
-    return jsonify(transaction_data)
+        explanation = generate_explanation(exception)
+        return jsonify(explanation)
+    except Exception:
+        return jsonify({"error": "Unable to generate counterfactual explanation."}), 500
 
 
-@app.route("/api/counterfactual/<transaction_id>")
-def counterfactual(transaction_id):
-    results, metrics, report, matrix, all_labels, ai_records = reconcile(CSV_PATH)
+@app.route("/api/counterfactual/simulate", methods=["POST"])
+@require_auth
+def simulate_counterfactual():
+    """
+    Phase 4 & 5 Core Feature: True Deterministic Counterfactual Financial Simulation.
+    Validates input ranges and returns live mathematical impact analysis (Protected).
+    """
+    data = request.get_json(silent=True) or {}
 
-    transaction = results[
-        results["transaction_id"].astype(str) == str(transaction_id)
-    ]
+    try:
+        gross_amount = float(data.get("gross_amount", 10000.0))
+        current_discount_pct = float(data.get("current_discount_pct", 5.0))
+        new_discount_pct = float(data.get("new_discount_pct", 3.0))
+        fee_pct = float(data.get("fee_pct", 1.8))
+        tax_pct = float(data.get("tax_pct", 18.0))
+        refund_amount = float(data.get("refund_amount", 0.0))
+        settlement_recovery_pct = float(data.get("settlement_recovery_pct", 100.0))
+        settlement_timing_days = int(data.get("settlement_timing_days", 1))
+        transaction_id = str(data.get("transaction_id", "TXN_SIMULATION")).strip()
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid numerical parameters provided."}), 400
 
-    if transaction.empty:
-        return jsonify({
-            "error": "Transaction not found"
-        }), 404
+    # Strict input boundary validation
+    if gross_amount <= 0:
+        return jsonify({"error": "Gross amount must be greater than zero."}), 400
+    if not (0 <= current_discount_pct <= 100):
+        return jsonify({"error": "Current discount percentage must be between 0% and 100%."}), 400
+    if not (0 <= new_discount_pct <= 100):
+        return jsonify({"error": "New discount percentage must be between 0% and 100%."}), 400
+    if fee_pct < 0 or fee_pct > 50:
+        return jsonify({"error": "Gateway fee percentage must be between 0% and 50%."}), 400
+    if tax_pct < 0 or tax_pct > 100:
+        return jsonify({"error": "Tax percentage must be between 0% and 100%."}), 400
+    if refund_amount < 0:
+        return jsonify({"error": "Refund amount cannot be negative."}), 400
+    if not (0 <= settlement_recovery_pct <= 100):
+        return jsonify({"error": "Settlement recovery percentage must be between 0% and 100%."}), 400
+    if settlement_timing_days not in (0, 1, 2):
+        return jsonify({"error": "Settlement timing days must be 0 (T+0), 1 (T+1), or 2 (T+2)."}), 400
 
-    row = transaction.iloc[0]
+    simulation = calculate_counterfactual(
+        gross_amount=gross_amount,
+        current_discount_pct=current_discount_pct,
+        new_discount_pct=new_discount_pct,
+        fee_pct=fee_pct,
+        tax_pct=tax_pct,
+        refund_amount=refund_amount,
+        settlement_recovery_pct=settlement_recovery_pct,
+        settlement_timing_days=settlement_timing_days,
+        transaction_id=transaction_id
+    )
 
-    if str(row["exception_type"]) == "NONE":
-        return jsonify({
-            "error": "This transaction has no exception"
-        }), 400
+    multi_scenarios = generate_multi_scenario_comparison(
+        gross_amount=gross_amount,
+        custom_discount_pct=new_discount_pct,
+        fee_pct=fee_pct,
+        tax_pct=tax_pct,
+        refund_amount=refund_amount
+    )
 
-    exception = {
-        "transaction_id": str(row["transaction_id"]),
-        "exception_type": str(row["exception_type"]),
-        "expected_settlement": float(row["expected_settlement"]),
-        "actual_settlement": float(row["actual_settlement"]),
-        "difference": float(row["difference"]),
-        "refund_amount": float(row["refund_amount"]),
-        "fee": float(row["fee"]),
-        "tax": float(row["tax"]),
-        "settlement_status": str(row["settlement_status"]),
-        "confidence": float(row.get("confidence", 0.95)),
+    return jsonify({
+        "simulation": simulation,
+        "multi_scenarios": multi_scenarios
+    })
+
+
+# ====================================================================
+# PERSISTENT SAVED SIMULATIONS (USER ISOLATED)
+# ====================================================================
+
+@app.route("/api/simulations", methods=["POST"])
+@require_auth
+def save_simulation():
+    """
+    Persists a counterfactual simulation scenario to MongoDB Atlas.
+    User ID is strictly derived from the authenticated session.
+    """
+    data = request.get_json(silent=True) or {}
+
+    try:
+        gross_amount = float(data.get("gross_amount", 10000.0))
+        current_discount_pct = float(data.get("current_discount_pct", 5.0))
+        new_discount_pct = float(data.get("new_discount_pct", 3.0))
+        fee_pct = float(data.get("fee_pct", 1.8))
+        tax_pct = float(data.get("tax_pct", 18.0))
+        refund_amount = float(data.get("refund_amount", 0.0))
+        settlement_recovery_pct = float(data.get("settlement_recovery_pct", 100.0))
+        settlement_timing = str(data.get("settlement_timing", "T+1")).strip().upper()
+        transaction_id = str(data.get("transaction_id", "TXN_SIMULATION")).strip()
+        scenario_name = str(data.get("name", f"Pricing Simulation - {transaction_id}")).strip()
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid simulation parameters."}), 400
+
+    timing_map = {"T+0": 0, "T+1": 1, "T+2": 2}
+    if settlement_timing not in timing_map:
+        return jsonify({"error": "Settlement timing must be 'T+0', 'T+1', or 'T+2'."}), 400
+
+    timing_days = timing_map[settlement_timing]
+
+    calc = calculate_counterfactual(
+        gross_amount=gross_amount,
+        current_discount_pct=current_discount_pct,
+        new_discount_pct=new_discount_pct,
+        fee_pct=fee_pct,
+        tax_pct=tax_pct,
+        refund_amount=refund_amount,
+        settlement_recovery_pct=settlement_recovery_pct,
+        settlement_timing_days=timing_days,
+        transaction_id=transaction_id
+    )
+
+    sim_id = f"sim_{uuid.uuid4().hex[:12]}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    authenticated_user_id = g.user_id
+
+    simulation_doc = {
+        "id": sim_id,
+        "name": scenario_name,
+        "user_id": authenticated_user_id,
+        "transaction_id": transaction_id,
+        "exception_type": str(data.get("exception_type", "COMMERCIAL_PRICING")),
+        "created_at": now_iso,
+        "scenario": {
+            "discount": new_discount_pct,
+            "current_discount": current_discount_pct,
+            "gateway_fee": fee_pct,
+            "recovery_percentage": settlement_recovery_pct,
+            "settlement_timing": settlement_timing
+        },
+        "baseline": calc["baseline"],
+        "counterfactual": calc["counterfactual"],
+        "financial_delta": calc["deltas"],
+        "recommendation": calc["decision_guidance"]
     }
 
-    explanation = generate_explanation(exception)
+    try:
+        sim_col = get_simulations_collection()
+        sim_col.insert_one(simulation_doc)
+    except ConnectionError as ce:
+        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
 
-    return jsonify(explanation)
+    log_audit_event(
+        user_id=authenticated_user_id,
+        action="SIMULATION_CREATED",
+        transaction_id=transaction_id,
+        metadata={"simulation_id": sim_id, "scenario_name": scenario_name}
+    )
 
-
-@app.route("/api/health")
-def health():
     return jsonify({
-        "status": "healthy"
-    })
+        "message": "Simulation scenario saved successfully.",
+        "simulation": simulation_doc
+    }), 201
+
+
+@app.route("/api/simulations", methods=["GET"])
+@require_auth
+def get_saved_simulations():
+    """Retrieves saved simulations belonging strictly to the authenticated user."""
+    try:
+        sim_col = get_simulations_collection()
+        user_simulations = list(sim_col.find({"user_id": g.user_id}))
+    except ConnectionError as ce:
+        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+
+    # Clean Mongo ObjectId for JSON serialization
+    for s in user_simulations:
+        if "_id" in s:
+            s["_id"] = str(s["_id"])
+
+    sorted_sims = sorted(user_simulations, key=lambda s: s.get("created_at", ""), reverse=True)
+
+    return jsonify({
+        "simulations": sorted_sims,
+        "count": len(sorted_sims)
+    }), 200
+
+
+@app.route("/api/simulations/<simulation_id>", methods=["GET"])
+@require_auth
+def get_simulation_by_id(simulation_id):
+    """Retrieves a specific simulation document by ID (Strict User Isolation)."""
+    try:
+        sim_col = get_simulations_collection()
+        sim_doc = sim_col.find_one({"id": simulation_id, "user_id": g.user_id}) or sim_col.find_one({"_id": simulation_id, "user_id": g.user_id})
+    except ConnectionError as ce:
+        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+
+    if not sim_doc:
+        return jsonify({"error": "Simulation not found or access unauthorized."}), 404
+
+    if "_id" in sim_doc:
+        sim_doc["_id"] = str(sim_doc["_id"])
+
+    return jsonify({"simulation": sim_doc}), 200
+
+
+@app.route("/api/simulations/<simulation_id>", methods=["DELETE"])
+@require_auth
+def delete_simulation(simulation_id):
+    """Deletes a saved simulation owned by the authenticated user."""
+    try:
+        sim_col = get_simulations_collection()
+        sim_doc = sim_col.find_one({"id": simulation_id, "user_id": g.user_id}) or sim_col.find_one({"_id": simulation_id, "user_id": g.user_id})
+    except ConnectionError as ce:
+        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+
+    if not sim_doc:
+        return jsonify({"error": "Simulation not found or access unauthorized."}), 404
+
+    target_id = sim_doc.get("_id") or sim_doc.get("id")
+    sim_col.delete_one({"_id": target_id})
+
+    log_audit_event(
+        user_id=g.user_id,
+        action="SIMULATION_DELETED",
+        transaction_id=sim_doc.get("transaction_id"),
+        metadata={"simulation_id": simulation_id}
+    )
+
+    return jsonify({
+        "status": "deleted",
+        "message": "Simulation scenario removed successfully."
+    }), 200
+
+
+@app.route("/api/audit-trail", methods=["GET"])
+@require_auth
+def get_audit_trail():
+    """Retrieves the audit log history for the authenticated user."""
+    try:
+        audit_col = get_audit_events_collection()
+        user_events = list(audit_col.find({"user_id": g.user_id}))
+    except ConnectionError as ce:
+        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+
+    for e in user_events:
+        if "_id" in e:
+            e["_id"] = str(e["_id"])
+
+    sorted_events = sorted(user_events, key=lambda e: e.get("timestamp", ""), reverse=True)
+
+    return jsonify({
+        "audit_events": sorted_events,
+        "count": len(sorted_events)
+    }), 200
 
 
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
-        port=5000,
-        debug=True
+        port=int(os.getenv("PORT", 5000)),
+        debug=False
     )
