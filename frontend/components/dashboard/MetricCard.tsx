@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   HelpCircle,
+  Activity,
 } from 'lucide-react'
 
 interface MetricCardProps {
@@ -31,13 +32,13 @@ export function MetricCard({
   const getBadgeIcon = () => {
     switch (badgeTone) {
       case 'positive':
-        return <CheckCircle2 size={12} className="text-emerald-600" />
+        return <CheckCircle2 size={12} className="text-emerald-400" />
       case 'negative':
-        return <AlertTriangle size={12} className="text-rose-600" />
+        return <AlertTriangle size={12} className="text-rose-400" />
       case 'indigo':
-        return <TrendingUp size={12} className="text-indigo-600" />
+        return <TrendingUp size={12} className="text-indigo-400" />
       default:
-        return <ShieldAlert size={12} className="text-slate-500" />
+        return <Activity size={12} className="text-slate-400" />
     }
   }
 
@@ -48,31 +49,33 @@ export function MetricCard({
       case 'negative':
         return 'kpi-badge-negative'
       case 'indigo':
-        return 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+        return 'bg-indigo-950/80 text-indigo-300 border border-indigo-500/40'
       default:
         return 'kpi-badge-neutral'
     }
   }
 
   return (
-    <div className={`kpi-card tone-${tone}`}>
+    <div className={`kpi-card tone-${tone} group`}>
       <div className="kpi-label">
         <span>{label}</span>
         {tooltip && (
-          <span title={tooltip} className="cursor-help text-slate-400 hover:text-slate-600">
+          <span title={tooltip} className="cursor-help text-slate-500 hover:text-slate-300 transition">
             <HelpCircle size={13} />
           </span>
         )}
       </div>
 
-      <div className="kpi-value tabular-nums">{value}</div>
+      <div className="kpi-value tabular-nums group-hover:text-indigo-300 transition-colors">
+        {value}
+      </div>
 
       <div className="kpi-footer">
         <span className={getBadgeClass()}>
           {getBadgeIcon()}
           <span>{badgeText}</span>
         </span>
-        <span className="text-slate-500 truncate text-[11px]">{subtitle}</span>
+        <span className="text-slate-400 truncate text-[11px] font-medium">{subtitle}</span>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import type { DashboardMetrics, BackendException, Transaction } from '@/types'
 import {
   formatCurrency,
@@ -16,8 +16,10 @@ import {
   TrendingUp,
   AlertTriangle,
   Layers,
-  CreditCard,
-  Building,
+  Sparkles,
+  DollarSign,
+  Scale,
+  BrainCircuit,
 } from 'lucide-react'
 
 interface ReportAnalyticsProps {
@@ -26,6 +28,7 @@ interface ReportAnalyticsProps {
   transactions: Transaction[]
   onRefresh: () => void
   isSyncing?: boolean
+  onNavigateToCounterfactual?: () => void
 }
 
 export function ReportAnalytics({
@@ -34,6 +37,7 @@ export function ReportAnalytics({
   transactions,
   onRefresh,
   isSyncing,
+  onNavigateToCounterfactual,
 }: ReportAnalyticsProps) {
   const total = metrics.total_records ?? transactions.length
   const matched = metrics.matched_records ?? 0
@@ -44,7 +48,7 @@ export function ReportAnalytics({
   const unreconciled = Math.abs(metrics.unreconciled_amount ?? 0)
 
   // Rail breakdown stats
-  const railStats = React.useMemo(() => {
+  const railStats = useMemo(() => {
     const map = new Map<string, { count: number; matched: number; volume: number; variance: number }>()
 
     transactions.forEach((tx) => {
@@ -66,6 +70,19 @@ export function ReportAnalytics({
       variance: data.variance,
     }))
   }, [transactions])
+
+  // Aggregate simulated counterfactual potential across open exceptions
+  const counterfactualAnalytics = useMemo(() => {
+    const count = totalExceptions
+    // If commercial discount was optimized from 5% to 3% across portfolio volume:
+    const baselineVolume = expectedTotal
+    const potentialMerchantYield = baselineVolume * 0.02
+    return {
+      simulationsAvailable: count,
+      potentialMerchantYield,
+      averageExceptionExposure: count > 0 ? unreconciled / count : 0,
+    }
+  }, [totalExceptions, expectedTotal, unreconciled])
 
   const handlePrint = () => {
     window.print()
@@ -110,9 +127,9 @@ export function ReportAnalytics({
       <div className="page-header">
         <div>
           <span className="eyebrow">Executive Treasury Audit</span>
-          <h1 className="page-title">Settlement Analytics & Reports</h1>
+          <h1 className="page-title">Settlement & Counterfactual Analytics</h1>
           <p className="page-subhead">
-            Comprehensive audit breakdown of ledger records, reconciliation fidelity, and capital exposure.
+            Comprehensive audit breakdown of ledger records, reconciliation fidelity, and commercial simulation analytics.
           </p>
         </div>
 
@@ -154,7 +171,7 @@ export function ReportAnalytics({
           <div className="kpi-label">Actual Bank Settlement</div>
           <div className="kpi-value tabular-nums">{formatCurrency(actualTotal)}</div>
           <div className="kpi-footer">
-            <span className="kpi-badge-neutral">Sum of actual settlements</span>
+            <span className="kpi-badge-neutral">Sum of recorded settlements</span>
           </div>
         </div>
 
@@ -170,15 +187,65 @@ export function ReportAnalytics({
         </div>
       </div>
 
+      {/* Counterfactual Intelligence Analytics Callout Card */}
+      <div className="card-panel p-5 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-md space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <BrainCircuit size={16} className="text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
+                Phase 4 Counterfactual Commercial Intelligence
+              </span>
+            </div>
+            <h3 className="text-base font-bold text-white">
+              Portfolio Commercial Optimization Analytics
+            </h3>
+          </div>
+
+          {onNavigateToCounterfactual && (
+            <button
+              onClick={onNavigateToCounterfactual}
+              className="btn bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
+            >
+              <Sparkles size={13} />
+              <span>Launch Studio</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
+          <div className="p-3 bg-slate-900/80 border border-indigo-800/50 rounded-lg">
+            <span className="text-[11px] text-slate-400 block">Simulation Target Entities</span>
+            <strong className="text-lg font-bold text-white tabular-nums">
+              {counterfactualAnalytics.simulationsAvailable} items
+            </strong>
+          </div>
+
+          <div className="p-3 bg-slate-900/80 border border-indigo-800/50 rounded-lg">
+            <span className="text-[11px] text-slate-400 block">Avg Exposure per Item</span>
+            <strong className="text-lg font-bold text-rose-400 tabular-nums">
+              {formatCurrency(counterfactualAnalytics.averageExceptionExposure)}
+            </strong>
+          </div>
+
+          <div className="p-3 bg-slate-900/80 border border-indigo-800/50 rounded-lg">
+            <span className="text-[11px] text-slate-400 block">200 bps Pricing Delta Yield</span>
+            <strong className="text-lg font-bold text-emerald-400 tabular-nums">
+              +{formatCurrency(counterfactualAnalytics.potentialMerchantYield)}
+            </strong>
+          </div>
+        </div>
+      </div>
+
       {/* Grid 2: Rail Quality Matrix & Executive Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Rail Quality Matrix */}
         <div className="lg:col-span-7 card-panel">
           <div className="card-panel-header">
             <div>
-              <h2 className="card-panel-title">Rail Performance Matrix</h2>
+              <h2 className="card-panel-title">Payment Rail Performance Matrix</h2>
               <p className="card-panel-subtitle">
-                Reconciliation accuracy and discrepancy distribution by payment rail
+                Reconciliation accuracy and variance exposure by payment instrument
               </p>
             </div>
           </div>
@@ -245,7 +312,7 @@ export function ReportAnalytics({
           <div className="card-panel-body space-y-3 text-xs">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-md flex justify-between">
               <span className="text-slate-600">Reconciliation Engine:</span>
-              <strong className="text-slate-900">Deterministic v3.2</strong>
+              <strong className="text-slate-900">Deterministic v4.0</strong>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-md flex justify-between">
@@ -254,8 +321,8 @@ export function ReportAnalytics({
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-md flex justify-between">
-              <span className="text-slate-600">Ledger Records Analyzed:</span>
-              <strong className="text-slate-900">{total} rows</strong>
+              <span className="text-slate-600">Unique Entities Analyzed:</span>
+              <strong className="text-slate-900">{total} transactions</strong>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-md flex justify-between">

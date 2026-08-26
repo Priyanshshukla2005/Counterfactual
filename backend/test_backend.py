@@ -221,7 +221,18 @@ def run_all_tests():
         "settlement_timing": "T+1"
     })
     assert resp_save.status_code == 201, f"Failed to save simulation to Atlas: {resp_save.data}"
-    sim_id = resp_save.get_json()["simulation"]["id"]
+    save_data = resp_save.get_json()
+    assert "simulation" in save_data, "Response must include simulation"
+    assert isinstance(save_data["simulation"]["id"], str), "Simulation ID must be a string"
+    if "_id" in save_data["simulation"]:
+        assert isinstance(save_data["simulation"]["_id"], str), "MongoDB _id must be serialized as string"
+    sim_id = save_data["simulation"]["id"]
+
+    # Verify single simulation retrieval by ID
+    resp_get_sim = client.get(f"/api/simulations/{sim_id}", headers={"Authorization": f"Bearer {user_a_token}"})
+    assert resp_get_sim.status_code == 200, f"Failed to retrieve simulation by ID: {resp_get_sim.data}"
+    retrieved_sim = resp_get_sim.get_json()["simulation"]
+    assert retrieved_sim["id"] == sim_id
 
     # 5. User B isolation on Atlas
     user_b_email = f"beta_{os.getpid()}_{os.urandom(3).hex()}@counterfactual.fi"

@@ -3,6 +3,8 @@ import uuid
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
+from pymongo.errors import PyMongoError
+from bson import ObjectId
 
 from reconciliation import reconcile
 from explanation_engine import generate_explanation
@@ -11,7 +13,6 @@ from auth import auth_bp, require_auth, log_audit_event
 from database import (
     init_database,
     is_mongodb_live,
-    get_mongodb_error,
     get_simulations_collection,
     get_audit_events_collection,
 )
@@ -20,17 +21,39 @@ app = Flask(__name__)
 
 # Production-configured CORS origin
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://localhost:3000")
-CORS(app, origins=[o.strip() for o in CORS_ORIGIN.split(",")], supports_credentials=True)
+CORS(
+    app,
+    origins=[o.strip() for o in CORS_ORIGIN.split(",") if o.strip()],
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 
 app.register_blueprint(auth_bp)
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "counterfactual_phase1_transactions.csv")
 
-# Initialize database on startup
+# Initialize database on startup (never silently fall back to local storage)
 try:
     init_database(strict=False)
 except Exception:
     pass
+
+
+def sanitize_mongo_doc(doc):
+    """
+    Recursively converts BSON ObjectId and other non-JSON-serializable types to strings.
+    Ensures that any MongoDB document can be safely serialized by Flask's jsonify().
+    """
+    if doc is None:
+        return None
+    if isinstance(doc, list):
+        return [sanitize_mongo_doc(item) for item in doc]
+    if isinstance(doc, dict):
+        return {k: sanitize_mongo_doc(v) for k, v in doc.items()}
+    if isinstance(doc, ObjectId):
+        return str(doc)
+    return doc
 
 
 # Global JSON error handlers (Never expose raw stack traces)
@@ -75,25 +98,17 @@ def health():
     Explicit Database Health Endpoint (Task 9).
     Returns 200 OK when MongoDB is connected and 503 when disconnected.
     """
-    db_name = os.getenv("MONGODB_DB_NAME", "counterfactual")
     if is_mongodb_live():
         return jsonify({
             "status": "healthy",
             "database": "mongodb",
-            "mongodb": "connected",
-            "database_name": db_name,
-            "api_version": "5.0.0"
+            "mongodb": "connected"
         }), 200
-    else:
-        err = get_mongodb_error() or "MongoDB is not reachable"
-        return jsonify({
-            "status": "unhealthy",
-            "database": "mongodb",
-            "mongodb": "disconnected",
-            "database_name": db_name,
-            "error": f"MongoDB Atlas connection failure: {err}",
-            "api_version": "5.0.0"
-        }), 503
+    return jsonify({
+        "status": "unhealthy",
+        "database": "mongodb",
+        "mongodb": "disconnected"
+    }), 503
 
 
 # ====================================================================
@@ -341,8 +356,8 @@ def save_simulation():
     try:
         sim_col = get_simulations_collection()
         sim_col.insert_one(simulation_doc)
-    except ConnectionError as ce:
-        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+    except (ConnectionError, PyMongoError) as ce:
+        return jsonify({"error": "Database Connection Failed", "message": "Unable to reach MongoDB Atlas. Please try again shortly."}), 503
 
     log_audit_event(
         user_id=authenticated_user_id,
@@ -353,7 +368,7 @@ def save_simulation():
 
     return jsonify({
         "message": "Simulation scenario saved successfully.",
-        "simulation": simulation_doc
+        "simulation": sanitize_mongo_doc(simulation_doc)
     }), 201
 
 
@@ -364,15 +379,11 @@ def get_saved_simulations():
     try:
         sim_col = get_simulations_collection()
         user_simulations = list(sim_col.find({"user_id": g.user_id}))
-    except ConnectionError as ce:
-        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+    except (ConnectionError, PyMongoError) as ce:
+        return jsonify({"error": "Database Connection Failed", "message": "Unable to reach MongoDB Atlas. Please try again shortly."}), 503
 
-    # Clean Mongo ObjectId for JSON serialization
-    for s in user_simulations:
-        if "_id" in s:
-            s["_id"] = str(s["_id"])
-
-    sorted_sims = sorted(user_simulations, key=lambda s: s.get("created_at", ""), reverse=True)
+    clean_sims = sanitize_mongo_doc(user_simulations)
+    sorted_sims = sorted(clean_sims, key=lambda s: s.get("created_at", ""), reverse=True)
 
     return jsonify({
         "simulations": sorted_sims,
@@ -387,16 +398,13 @@ def get_simulation_by_id(simulation_id):
     try:
         sim_col = get_simulations_collection()
         sim_doc = sim_col.find_one({"id": simulation_id, "user_id": g.user_id}) or sim_col.find_one({"_id": simulation_id, "user_id": g.user_id})
-    except ConnectionError as ce:
-        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+    except (ConnectionError, PyMongoError) as ce:
+        return jsonify({"error": "Database Connection Failed", "message": "Unable to reach MongoDB Atlas. Please try again shortly."}), 503
 
     if not sim_doc:
         return jsonify({"error": "Simulation not found or access unauthorized."}), 404
 
-    if "_id" in sim_doc:
-        sim_doc["_id"] = str(sim_doc["_id"])
-
-    return jsonify({"simulation": sim_doc}), 200
+    return jsonify({"simulation": sanitize_mongo_doc(sim_doc)}), 200
 
 
 @app.route("/api/simulations/<simulation_id>", methods=["DELETE"])
@@ -406,8 +414,8 @@ def delete_simulation(simulation_id):
     try:
         sim_col = get_simulations_collection()
         sim_doc = sim_col.find_one({"id": simulation_id, "user_id": g.user_id}) or sim_col.find_one({"_id": simulation_id, "user_id": g.user_id})
-    except ConnectionError as ce:
-        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+    except (ConnectionError, PyMongoError) as ce:
+        return jsonify({"error": "Database Connection Failed", "message": "Unable to reach MongoDB Atlas. Please try again shortly."}), 503
 
     if not sim_doc:
         return jsonify({"error": "Simulation not found or access unauthorized."}), 404
@@ -435,14 +443,11 @@ def get_audit_trail():
     try:
         audit_col = get_audit_events_collection()
         user_events = list(audit_col.find({"user_id": g.user_id}))
-    except ConnectionError as ce:
-        return jsonify({"error": "Database Connection Failed", "message": str(ce)}), 503
+    except (ConnectionError, PyMongoError) as ce:
+        return jsonify({"error": "Database Connection Failed", "message": "Unable to reach MongoDB Atlas. Please try again shortly."}), 503
 
-    for e in user_events:
-        if "_id" in e:
-            e["_id"] = str(e["_id"])
-
-    sorted_events = sorted(user_events, key=lambda e: e.get("timestamp", ""), reverse=True)
+    clean_events = sanitize_mongo_doc(user_events)
+    sorted_events = sorted(clean_events, key=lambda e: e.get("timestamp", ""), reverse=True)
 
     return jsonify({
         "audit_events": sorted_events,
@@ -454,5 +459,6 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=int(os.getenv("PORT", 5000)),
-        debug=False
+        debug=False,
+        threaded=True,
     )

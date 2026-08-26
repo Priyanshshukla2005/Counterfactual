@@ -10,8 +10,8 @@ import {
   ChevronRight,
   Sparkles,
   ArrowUpDown,
-  MoreHorizontal,
   ExternalLink,
+  Copy,
 } from 'lucide-react'
 
 interface TransactionTableProps {
@@ -116,32 +116,38 @@ export function TransactionTable({
                 className="cursor-pointer hover:text-slate-900 select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Variance</span>
+                  <span>Variance Exposure</span>
                   <ArrowUpDown size={12} />
                 </div>
               </th>
 
               <th>Exception Class</th>
               <th>Risk Tier</th>
-              <th>Settlement</th>
+              <th>Settlement Status</th>
               <th className="text-right">Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {paginatedTransactions.map((tx, index) => {
+            {paginatedTransactions.map((tx) => {
               const variance = Math.abs(tx.difference ?? 0)
               const hasDiscrepancy = variance > 0.01
+              const isDuplicate = tx.exceptionType === 'DUPLICATE'
 
               return (
                 <tr
-                  key={`${tx.id}-${index}-${startIndex}`}
+                  key={tx.id}
                   onClick={() => onSelect(tx)}
                   className="cursor-pointer group"
                 >
                   <td>
-                    <div className="font-semibold text-slate-900 mono-id group-hover:text-indigo-600 transition">
-                      {tx.id}
+                    <div className="font-semibold text-slate-900 mono-id group-hover:text-indigo-600 transition flex items-center gap-1.5">
+                      <span>{tx.id}</span>
+                      {isDuplicate && (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200 font-bold">
+                          Dup
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-500 truncate max-w-[180px]">
                       {tx.orderId ? `Order: ${tx.orderId}` : tx.reason}
@@ -162,18 +168,18 @@ export function TransactionTable({
 
                   <td className="tabular-nums font-semibold">
                     {hasDiscrepancy ? (
-                      <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-xs">
+                      <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 text-xs font-bold">
                         {formatCurrency(variance)}
                       </span>
                     ) : (
-                      <span className="text-emerald-700 text-xs">—</span>
+                      <span className="text-emerald-700 text-xs font-medium">—</span>
                     )}
                   </td>
 
                   <td>
                     <div className="text-xs font-medium text-slate-800">
                       {tx.exceptionType && tx.exceptionType !== 'NONE' ? (
-                        <span className="text-rose-700 font-semibold">
+                        <span className="text-rose-700 font-semibold flex items-center gap-1">
                           {readableException(tx.exceptionType)}
                         </span>
                       ) : (
@@ -192,14 +198,14 @@ export function TransactionTable({
 
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      {onSimulate && tx.status === 'Exception' && (
+                      {onSimulate && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             onSimulate(tx.id)
                           }}
                           className="p-1 text-indigo-600 hover:bg-indigo-50 rounded-md transition"
-                          title="Run Counterfactual Analysis"
+                          title="Simulate in Counterfactual Studio"
                         >
                           <Sparkles size={15} />
                         </button>

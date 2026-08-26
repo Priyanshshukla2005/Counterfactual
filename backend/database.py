@@ -1,15 +1,13 @@
 import os
 import re
-import urllib.parse
 import logging
-import uuid
-from datetime import datetime, timezone
+from urllib.parse import urlparse, unquote
 from dotenv import load_dotenv
 
-# Search and load .env from backend directory or workspace root
 basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, '.env'), override=True)
-load_dotenv(os.path.join(basedir, '..', '.env'), override=True)
+# Workspace .env may exist, but backend/.env is authoritative.
+load_dotenv(os.path.join(basedir, "..", ".env"), override=False)
+load_dotenv(os.path.join(basedir, ".env"), override=True)
 
 logger = logging.getLogger("counterfactual.database")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -20,73 +18,104 @@ _is_connected = False
 _connection_error = None
 
 
-def sanitize_mongodb_uri(raw_uri: str) -> str:
-    """
-    Safely ensures that user and password components in a mongodb/mongodb+srv URI
-    are properly URL-encoded if they contain special characters.
-    """
+def _strip_wrapping_quotes(value: str) -> str:
+    value = (value or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1].strip()
+    return value
+
+
+def _safe_error_text(exc: Exception) -> str:
+    msg = str(exc)
+    lowered = msg.lower()
+    if "tlsv1_alert_internal_error" in lowered or "ssl handshake failed" in lowered:
+        return "TLS handshake to MongoDB Atlas failed (Ensure client IP is whitelisted in Atlas Network Access)"
+    if "authentication failed" in lowered or "bad auth" in lowered:
+        return "MongoDB authentication failed (Check username and password)"
+    msg = re.sub(r"mongodb(?:\+srv)?://[^\s,)]+", "mongodb://***", msg, flags=re.IGNORECASE)
+    msg = re.sub(r":([^:@/]+)@", ":****@", msg)
+    if len(msg) > 180:
+        return msg[:180] + "..."
+    return msg
+
+
+def _uri_diagnostics(raw_uri: str) -> dict:
+    info = {
+        "configured": bool(raw_uri),
+        "username": "",
+        "host": "",
+        "scheme": "",
+    }
     if not raw_uri:
-        return raw_uri
-    
-    # Match standard mongodb or mongodb+srv connection string
-    pattern = r'^(mongodb(?:\+srv)?://)([^:]+):(.+)@([^/?]+)(.*)$'
-    match = re.match(pattern, raw_uri)
-    if match:
-        prefix, user, pwd, host, rest = match.groups()
-        # Decode first if already partially encoded, then quote_plus
-        decoded_user = urllib.parse.unquote_plus(user)
-        decoded_pwd = urllib.parse.unquote_plus(pwd)
-        encoded_user = urllib.parse.quote_plus(decoded_user)
-        encoded_pwd = urllib.parse.quote_plus(decoded_pwd)
-        return f"{prefix}{encoded_user}:{encoded_pwd}@{host}{rest}"
-    return raw_uri
+        return info
+    try:
+        parsed = urlparse(raw_uri)
+        info["scheme"] = parsed.scheme or ""
+        info["username"] = unquote(parsed.username) if parsed.username else ""
+        info["host"] = parsed.hostname or ""
+    except Exception:
+        match = re.search(r"@([^/?]+)", raw_uri)
+        if match:
+            info["host"] = match.group(1)
+    return info
 
 
 def get_mongo_client():
     """
     Initializes or returns the active MongoClient connection to MongoDB Atlas.
+    The Atlas URI is used as provided — credentials are not decoded/re-encoded.
     """
     global _mongo_client, _connection_error
 
     if _mongo_client is not None:
         return _mongo_client
 
-    mongodb_uri = os.getenv("MONGODB_URI", "").strip()
+    mongodb_uri = _strip_wrapping_quotes(os.getenv("MONGODB_URI", ""))
 
     if not mongodb_uri:
         _connection_error = "MONGODB_URI environment variable is not configured."
         return None
 
-    sanitized_uri = sanitize_mongodb_uri(mongodb_uri)
-
     try:
         from pymongo import MongoClient
+        import certifi
 
         client_kwargs = {
-            "serverSelectionTimeoutMS": 4000,
-            "connectTimeoutMS": 4000,
-            "socketTimeoutMS": 5000,
+            "serverSelectionTimeoutMS": 8000,
+            "connectTimeoutMS": 8000,
+            "socketTimeoutMS": 8000,
             "maxPoolSize": 50,
             "appname": "CounterfactualFintechApp",
+            "tlsDisableOCSPEndpointCheck": True,
+            "tlsCAFile": certifi.where(),
         }
 
-        try:
-            import certifi
-            client_kwargs["tlsCAFile"] = certifi.where()
-        except ImportError:
-            pass
-
-        client = MongoClient(sanitized_uri, **client_kwargs)
-        # Test connection with ping
+        client = MongoClient(mongodb_uri, **client_kwargs)
         client.admin.command("ping")
         _mongo_client = client
         _connection_error = None
         return _mongo_client
 
     except Exception as e:
-        _connection_error = str(e)
-        logger.error(f"MongoDB connection attempt failed: {str(e)}")
+        _connection_error = _safe_error_text(e)
+        logger.error("MongoDB connection attempt failed: %s", _connection_error)
         return None
+
+
+def _log_startup_diagnostics(connected: bool):
+    uri = _strip_wrapping_quotes(os.getenv("MONGODB_URI", ""))
+    db_name = os.getenv("MONGODB_DB_NAME", "counterfactual").strip() or "counterfactual"
+    info = _uri_diagnostics(uri)
+
+    logger.info("MongoDB configured: %s", "YES" if info["configured"] else "NO")
+    if info["host"]:
+        logger.info("MongoDB host: %s", info["host"])
+    if info["username"]:
+        logger.info("MongoDB username: %s", info["username"])
+    logger.info("MongoDB database: %s", db_name)
+    logger.info("MongoDB connection: %s", "CONNECTED" if connected else "DISCONNECTED")
+    if not connected and _connection_error:
+        logger.error("MongoDB connection error: %s", _connection_error)
 
 
 def init_database(strict: bool = False):
@@ -97,7 +126,7 @@ def init_database(strict: bool = False):
     """
     global _db_instance, _is_connected, _connection_error
 
-    db_name = os.getenv("MONGODB_DB_NAME", "counterfactual").strip()
+    db_name = os.getenv("MONGODB_DB_NAME", "counterfactual").strip() or "counterfactual"
     client = get_mongo_client()
 
     if client is not None:
@@ -106,18 +135,17 @@ def init_database(strict: bool = False):
             _is_connected = True
             _connection_error = None
             _init_db_indexes(_db_instance)
-            logger.info("MongoDB Atlas connected successfully")
-            logger.info(f"Database: {db_name}")
+            _log_startup_diagnostics(True)
             return _db_instance
         except Exception as e:
             _is_connected = False
-            _connection_error = str(e)
-            logger.error(f"MongoDB Atlas initialization failed: {str(e)}")
+            _connection_error = _safe_error_text(e)
+            _log_startup_diagnostics(False)
             if strict:
-                raise e
+                raise
     else:
         _is_connected = False
-        logger.warning("MongoDB Atlas is not connected. Operational queries will fail.")
+        _log_startup_diagnostics(False)
         if strict and _connection_error:
             raise ConnectionError(f"MongoDB Atlas connection failed: {_connection_error}")
 
@@ -128,8 +156,9 @@ def get_database():
     """
     Returns the persistent MongoDB Atlas database instance.
     Raises ConnectionError if MongoDB is configured but unreachable.
+    There is no JSON or in-memory fallback.
     """
-    global _db_instance, _is_connected, _connection_error
+    global _db_instance, _is_connected
 
     if _db_instance is not None and _is_connected:
         return _db_instance
@@ -158,7 +187,7 @@ def _init_db_indexes(db):
         audit.create_index([("user_id", 1)])
         audit.create_index([("timestamp", -1)])
     except Exception as e:
-        logger.warning(f"Index initialization warning: {e}")
+        logger.warning("Index initialization warning: %s", _safe_error_text(e))
 
 
 def get_users_collection():
@@ -177,17 +206,22 @@ def get_audit_events_collection():
 
 
 def is_mongodb_live() -> bool:
-    global _is_connected
-    if not _is_connected:
-        try:
-            init_database(strict=False)
-        except Exception:
-            pass
-    return _is_connected
+    global _is_connected, _connection_error
+    try:
+        client = get_mongo_client()
+        if client is None:
+            _is_connected = False
+            return False
+        client.admin.command("ping")
+        _is_connected = True
+        return True
+    except Exception as e:
+        _is_connected = False
+        _connection_error = _safe_error_text(e)
+        return False
 
 
 def get_mongodb_error() -> str | None:
-    global _connection_error
     return _connection_error
 
 

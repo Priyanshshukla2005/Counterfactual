@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ShieldCheck,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react'
 
 export function AuthScreen() {
@@ -91,13 +92,17 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background ambient lighting glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-sky-500/5 rounded-full blur-3xl pointer-events-none" />
+
       {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white shadow-md mx-auto">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3 relative z-10">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-sky-600 text-white shadow-[0_0_25px_rgba(99,102,241,0.4)] mx-auto border border-white/20">
           <svg
-            width="24"
-            height="24"
+            width="28"
+            height="28"
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -118,42 +123,43 @@ export function AuthScreen() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-3xl font-extrabold tracking-tight text-white">
             Counterfactual
           </h1>
-          <p className="text-xs text-slate-500 font-medium tracking-wide uppercase mt-0.5">
+          <p className="text-xs text-indigo-400 font-bold tracking-widest uppercase mt-1">
             Settlement Intelligence Platform
           </p>
         </div>
       </div>
 
       {/* Auth Card */}
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 rounded-xl sm:px-10 space-y-6">
-          <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-lg font-bold text-slate-900">
-              {mode === 'login' ? 'Sign in to your account' : 'Create your treasury account'}
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0 relative z-10">
+        <div className="card-panel py-8 px-6 sm:px-10 space-y-6 shadow-2xl border border-slate-800 bg-slate-900/90 backdrop-blur-xl">
+          <div className="border-b border-slate-800 pb-4">
+            <h2 className="text-lg font-bold text-white">
+              {mode === 'login' ? 'Sign in to treasury control' : 'Create treasury account'}
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               {mode === 'login'
-                ? 'Access your settlement ledger, exception queue, and counterfactual models.'
+                ? 'Access your settlement ledger, exception queue, and 3D simulation engine.'
                 : 'Get started with intelligent reconciliation and counterfactual analysis.'}
             </p>
           </div>
 
           {/* Error Banner */}
           {error && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-xs text-rose-800">
-              <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+            <div className="p-3 bg-rose-950/60 border border-rose-800/60 rounded-xl flex items-start gap-2.5 text-xs text-rose-300">
+              <AlertCircle size={15} className="text-rose-400 shrink-0 mt-0.5" />
               <div className="flex-1 font-medium">{error}</div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Auth Form */}
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {mode === 'signup' && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                     Full Name
                   </label>
                   <div className="relative">
@@ -163,49 +169,49 @@ export function AuthScreen() {
                       placeholder="e.g. Priyansh Shukla"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+                      className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-white placeholder:text-slate-600 focus:border-indigo-500 outline-none transition"
                     />
-                    <UserIcon size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <UserIcon size={14} className="absolute left-3 top-2.5 text-slate-500" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Organization / Entity (Optional)
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Treasury Organization
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="e.g. Global Treasury Operations"
+                      placeholder="e.g. Acme Treasury Corp"
                       value={organization}
                       onChange={(e) => setOrganization(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+                      className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-white placeholder:text-slate-600 focus:border-indigo-500 outline-none transition"
                     />
-                    <Building2 size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <Building2 size={14} className="absolute left-3 top-2.5 text-slate-500" />
                   </div>
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Work Email
               </label>
               <div className="relative">
                 <input
                   type="email"
                   required
-                  placeholder="name@company.com"
+                  placeholder="operator@company.fi"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-white placeholder:text-slate-600 focus:border-indigo-500 outline-none transition"
                 />
-                <Mail size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                <Mail size={14} className="absolute left-3 top-2.5 text-slate-500" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Password
               </label>
               <div className="relative">
@@ -215,13 +221,13 @@ export function AuthScreen() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-10 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-9 py-2 text-white placeholder:text-slate-600 focus:border-indigo-500 outline-none transition"
                 />
-                <Lock size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                <Lock size={14} className="absolute left-3 top-2.5 text-slate-500" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
                 >
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -230,7 +236,7 @@ export function AuthScreen() {
 
             {mode === 'signup' && (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -240,13 +246,13 @@ export function AuthScreen() {
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-10 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-9 py-2 text-white placeholder:text-slate-600 focus:border-indigo-500 outline-none transition"
                   />
-                  <Lock size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                  <Lock size={14} className="absolute left-3 top-2.5 text-slate-500" />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
                   >
                     {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
@@ -255,19 +261,19 @@ export function AuthScreen() {
             )}
 
             {mode === 'login' && (
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded accent-indigo-600 bg-slate-950"
                   />
-                  <span>Remember session</span>
+                  <span className="text-slate-400">Remember session</span>
                 </label>
 
-                <span className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                  Forgot password?
+                <span className="text-indigo-400 hover:underline cursor-pointer">
+                  Default credentials seeded
                 </span>
               </div>
             )}
@@ -275,58 +281,57 @@ export function AuthScreen() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full btn btn-primary py-2.5 text-xs font-bold justify-center"
+              className="btn btn-primary w-full py-2.5 font-bold shadow-lg"
             >
               {isSubmitting ? (
                 <>
                   <RefreshCw size={14} className="spin" />
-                  <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
+                  <span>Authenticating...</span>
+                </>
+              ) : mode === 'login' ? (
+                <>
+                  <span>Sign In to Platform</span>
+                  <ArrowRight size={14} />
                 </>
               ) : (
                 <>
-                  <span>{mode === 'login' ? 'Sign in' : 'Create account'}</span>
-                  <ArrowRight size={14} />
+                  <Sparkles size={14} />
+                  <span>Create Account</span>
                 </>
               )}
             </button>
           </form>
 
-          {/* Toggle between Login and Signup */}
-          <div className="pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
+          {/* Mode Switcher */}
+          <div className="text-center pt-2 border-t border-slate-800 text-xs">
             {mode === 'login' ? (
-              <div>
-                Don&apos;t have an account?{' '}
+              <p className="text-slate-400">
+                Need a treasury account?{' '}
                 <button
                   onClick={() => {
                     setMode('signup')
                     setError(null)
                   }}
-                  className="font-bold text-indigo-600 hover:text-indigo-800 transition"
+                  className="text-indigo-400 font-bold hover:underline"
                 >
-                  Create account
+                  Register here
                 </button>
-              </div>
+              </p>
             ) : (
-              <div>
-                Already have an account?{' '}
+              <p className="text-slate-400">
+                Already registered?{' '}
                 <button
                   onClick={() => {
                     setMode('login')
                     setError(null)
                   }}
-                  className="font-bold text-indigo-600 hover:text-indigo-800 transition"
+                  className="text-indigo-400 font-bold hover:underline"
                 >
-                  Sign in
+                  Sign in here
                 </button>
-              </div>
+              </p>
             )}
           </div>
-        </div>
-
-        {/* Security badge */}
-        <div className="mt-6 text-center flex items-center justify-center gap-1.5 text-slate-400 text-xs">
-          <ShieldCheck size={14} className="text-slate-500" />
-          <span>Encrypted Session • Deterministic Financial Reconciliation</span>
         </div>
       </div>
     </div>

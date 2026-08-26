@@ -37,20 +37,20 @@ export function TransactionFilters({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3.5 shadow-xs mb-4">
+    <div className="card-panel p-4 space-y-4 mb-4">
       {/* Top row: Status Tabs & Quick Counts */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800">
           {(['ALL', 'Reconciled', 'Exception'] as const).map((st) => {
             const isActive = filters.status === st
             return (
               <button
                 key={st}
                 onClick={() => setFilters((prev) => ({ ...prev, status: st }))}
-                className={`px-3 py-1 text-xs font-semibold rounded transition ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
                   isActive
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {st === 'ALL' ? 'All Transactions' : st === 'Reconciled' ? 'Matched' : 'Exceptions Only'}
@@ -59,28 +59,28 @@ export function TransactionFilters({
           })}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-3 text-xs text-slate-400">
           <span>
-            Showing <strong className="text-slate-900">{filteredCount}</strong> of{' '}
-            {totalCount} records
+            Displaying <strong className="text-white tabular-nums">{filteredCount}</strong> of{' '}
+            <strong className="text-slate-300 tabular-nums">{totalCount}</strong> ledger records
           </span>
           {isFiltered && (
             <button
               onClick={resetFilters}
-              className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1"
+              className="text-xs text-indigo-400 font-bold hover:text-indigo-300 flex items-center gap-1 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30 transition"
             >
               <X size={12} />
-              Reset filters
+              <span>Reset</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Bottom Filter Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
         {/* Risk Filter */}
         <div>
-          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Risk Tier
           </label>
           <select
@@ -88,18 +88,18 @@ export function TransactionFilters({
             onChange={(e) =>
               setFilters((prev) => ({ ...prev, risk: e.target.value as any }))
             }
-            className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 outline-none transition"
           >
             <option value="ALL">All Risk Levels</option>
-            <option value="High">High Risk</option>
-            <option value="Medium">Medium Risk</option>
-            <option value="Low">Low Risk</option>
+            <option value="High">High Risk Tier</option>
+            <option value="Medium">Medium Risk Tier</option>
+            <option value="Low">Low Risk Tier</option>
           </select>
         </div>
 
         {/* Exception Type */}
         <div>
-          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Exception Class
           </label>
           <select
@@ -107,9 +107,9 @@ export function TransactionFilters({
             onChange={(e) =>
               setFilters((prev) => ({ ...prev, exceptionType: e.target.value }))
             }
-            className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 outline-none transition"
           >
-            <option value="ALL">All Exception Types</option>
+            <option value="ALL">All Exception Classes</option>
             <option value="MISSING_SETTLEMENT">Missing Settlement</option>
             <option value="DUPLICATE">Duplicate Settlement</option>
             <option value="DELAYED_SETTLEMENT">Delayed Settlement</option>
@@ -120,7 +120,7 @@ export function TransactionFilters({
 
         {/* Payment Rail */}
         <div>
-          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Payment Rail
           </label>
           <select
@@ -128,12 +128,12 @@ export function TransactionFilters({
             onChange={(e) =>
               setFilters((prev) => ({ ...prev, rail: e.target.value }))
             }
-            className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 outline-none transition"
           >
             <option value="ALL">All Payment Rails</option>
             {availableRails.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {r} Instrument
               </option>
             ))}
           </select>
@@ -141,20 +141,20 @@ export function TransactionFilters({
 
         {/* Quick Search */}
         <div>
-          <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Ledger Search
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder="Filter by ID or Reason..."
+              placeholder="Search reference, order, ID..."
               value={filters.query}
               onChange={(e) =>
                 setFilters((prev) => ({ ...prev, query: e.target.value }))
               }
-              className="w-full bg-slate-50 border border-slate-200 rounded-md pl-7 pr-2.5 py-1.5 text-slate-800 focus:bg-white focus:border-indigo-500 outline-none text-xs"
+              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg pl-8 pr-3 py-2 text-slate-200 focus:border-indigo-500 outline-none text-xs transition"
             />
-            <Search size={13} className="absolute left-2 top-2.5 text-slate-400" />
+            <Search size={13} className="absolute left-2.5 top-2.5 text-slate-500" />
           </div>
         </div>
       </div>

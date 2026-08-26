@@ -7,6 +7,8 @@ export interface User {
   name: string
   email: string
   organization?: string
+  role?: string
+  created_at?: string
 }
 
 export interface AuthResponse {
@@ -36,6 +38,14 @@ export type ExceptionType =
   | 'FEE_MISMATCH'
   | string
 
+export interface SettlementEvent {
+  event_id: string
+  actual_settlement: number
+  settlement_date: string
+  settlement_status: string
+  is_duplicate_disbursement?: boolean
+}
+
 export interface Transaction {
   id: string
   orderId?: string
@@ -61,6 +71,7 @@ export interface Transaction {
   tax?: number
   exceptionType?: ExceptionType
   settlementStatus?: string
+  settlementEvents?: SettlementEvent[]
 }
 
 export interface DashboardMetrics {
@@ -91,6 +102,7 @@ export interface BackendException {
   fee?: number
   tax?: number
   confidence?: number
+  settlement_events?: SettlementEvent[]
 }
 
 export interface BackendDashboardResponse {
@@ -106,6 +118,102 @@ export interface CounterfactualExplanation {
   recommended_action: string
   financial_impact: number
   confidence: number
+}
+
+// Phase 4 & 5: Commercial Counterfactual Simulation Types
+export interface SimulationState {
+  discount_pct: number
+  discount_amount: number
+  fee_amount: number
+  tax_amount: number
+  refund_amount: number
+  merchant_settlement: number
+  platform_revenue: number
+  settlement_timing_days?: number
+  settlement_recovery_pct?: number
+}
+
+export interface SimulationDeltas {
+  merchant_delta: number
+  platform_delta: number
+  is_merchant_gain: boolean
+  is_platform_gain: boolean
+}
+
+export interface CounterfactualSimulation {
+  transaction_id: string
+  gross_amount: number
+  current_state: SimulationState
+  counterfactual_state: SimulationState
+  deltas: SimulationDeltas
+  decision_guidance: string
+  guidance_type: 'merchant_favorable' | 'platform_favorable' | 'neutral'
+  explanation: string
+}
+
+export interface ScenarioComparisonItem {
+  scenario_id: string
+  name: string
+  badge: string
+  discount_pct: number
+  merchant_settlement: number
+  platform_revenue: number
+  merchant_delta: number
+  platform_delta: number
+  decision_guidance: string
+  guidance_type: string
+}
+
+export interface SimulationResponse {
+  simulation: CounterfactualSimulation
+  multi_scenarios: ScenarioComparisonItem[]
+}
+
+// Phase 5: Persistent Saved Simulation Types
+export interface SavedSimulationScenario {
+  discount: number
+  current_discount: number
+  gateway_fee: number
+  recovery_percentage: number
+  settlement_timing: string
+}
+
+export interface SavedSimulationFinancialBlock {
+  gross_amount: number
+  discount: number
+  discount_pct?: number
+  gateway_fee: number
+  fee_pct?: number
+  tax: number
+  tax_pct?: number
+  refund_amount: number
+  merchant_payout: number
+  platform_revenue: number
+  settlement_timing?: string
+  recovery_percentage?: number
+}
+
+export interface SavedSimulation {
+  id: string
+  name?: string
+  user_id: string
+  transaction_id: string
+  exception_type: string
+  created_at: string
+  scenario: SavedSimulationScenario
+  baseline: SavedSimulationFinancialBlock
+  counterfactual: SavedSimulationFinancialBlock
+  financial_delta: SimulationDeltas
+  recommendation: string
+}
+
+export interface AuditEvent {
+  id: string
+  user_id: string
+  action: 'LOGIN' | 'LOGOUT' | 'REGISTER' | 'SIMULATION_CREATED' | 'SIMULATION_DELETED' | string
+  timestamp: string
+  transaction_id?: string
+  metadata?: Record<string, any>
 }
 
 export interface Dashboard {

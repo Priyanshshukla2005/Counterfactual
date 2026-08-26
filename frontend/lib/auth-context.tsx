@@ -43,73 +43,92 @@ export function getGreeting(name?: string | null): string {
   return `${period}, ${firstName}`
 }
 
+function persistToken(token: string, rememberMe?: boolean) {
+  if (rememberMe) {
+    localStorage.setItem(TOKEN_KEY, token)
+    localStorage.setItem(REMEMBER_KEY, 'true')
+    sessionStorage.removeItem(TOKEN_KEY)
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token)
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
+function clearStoredToken() {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REMEMBER_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isRestoring, setIsRestoring] = useState(true)
 
-  // Hydrate session on initial client load
+  // Hydrate session on initial client load only — never reuse this flag for login/signup.
   useEffect(() => {
+    let cancelled = false
+
     async function restoreSession() {
       try {
         const savedToken =
           localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
 
-        if (savedToken) {
-          const res = await apiGetMe(savedToken)
-          setUser(res.user)
-          setToken(savedToken)
+        if (!savedToken) {
+          return
         }
+
+        const res = await apiGetMe(savedToken)
+        if (cancelled) return
+
+        if (!res?.user) {
+          clearStoredToken()
+          return
+        }
+
+        setToken(savedToken)
+        setUser(res.user)
       } catch (err) {
         console.warn('Session restoration expired or failed:', err)
-        localStorage.removeItem(TOKEN_KEY)
-        sessionStorage.removeItem(TOKEN_KEY)
+        clearStoredToken()
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsRestoring(false)
+        }
       }
     }
 
     restoreSession()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = async (credentials: LoginCredentials) => {
-    setIsLoading(true)
-    try {
-      const res = await apiLogin(credentials)
-      setUser(res.user)
-      setToken(res.token)
-
-      if (credentials.rememberMe) {
-        localStorage.setItem(TOKEN_KEY, res.token)
-        localStorage.setItem(REMEMBER_KEY, 'true')
-      } else {
-        sessionStorage.setItem(TOKEN_KEY, res.token)
-        localStorage.removeItem(TOKEN_KEY)
-      }
-    } finally {
-      setIsLoading(false)
+    const res = await apiLogin(credentials)
+    if (!res?.token || !res?.user) {
+      throw new Error('Invalid authentication response from server.')
     }
+    persistToken(res.token, credentials.rememberMe)
+    setToken(res.token)
+    setUser(res.user)
   }
 
   const signup = async (credentials: SignupCredentials) => {
-    setIsLoading(true)
-    try {
-      const res = await apiSignup(credentials)
-      setUser(res.user)
-      setToken(res.token)
-      sessionStorage.setItem(TOKEN_KEY, res.token)
-    } finally {
-      setIsLoading(false)
+    const res = await apiSignup(credentials)
+    if (!res?.token || !res?.user) {
+      throw new Error('Invalid authentication response from server.')
     }
+    persistToken(res.token, false)
+    setToken(res.token)
+    setUser(res.user)
   }
 
   const logout = async () => {
     const currentToken = token
     setUser(null)
     setToken(null)
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(REMEMBER_KEY)
-    sessionStorage.removeItem(TOKEN_KEY)
+    clearStoredToken()
     await apiLogout(currentToken || undefined)
   }
 
@@ -118,8 +137,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         token,
-        isAuthenticated: !!user,
-        isLoading,
+        isAuthenticated: !!user && !!token,
+        isLoading: isRestoring,
         login,
         signup,
         logout,

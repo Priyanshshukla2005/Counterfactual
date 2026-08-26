@@ -5,6 +5,7 @@ from functools import wraps
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
+from pymongo.errors import PyMongoError
 from database import get_users_collection, get_audit_events_collection, is_mongodb_live, get_mongodb_error
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -108,10 +109,10 @@ def require_auth(f):
         try:
             users_col = get_users_collection()
             user_doc = users_col.find_one({"id": user_id}) or users_col.find_one({"email": email})
-        except ConnectionError as ce:
+        except (ConnectionError, PyMongoError):
             return jsonify({
                 "error": "Database Unavailable",
-                "message": f"Unable to reach MongoDB Atlas: {str(ce)}"
+                "message": "Unable to reach MongoDB Atlas. Please try again shortly."
             }), 503
         except Exception:
             user_doc = None
@@ -163,14 +164,14 @@ def signup():
 
         try:
             users_col = get_users_collection()
-        except ConnectionError as ce:
+            existing_user = users_col.find_one({"email": email})
+        except (ConnectionError, PyMongoError):
             return jsonify({
                 "error": "Database Connection Failed",
-                "message": f"Unable to connect to MongoDB Atlas database. Please verify MONGODB_URI credentials: {str(ce)}"
+                "message": "Unable to connect to MongoDB Atlas. Registration was not saved."
             }), 503
 
         # Enforce unique email check
-        existing_user = users_col.find_one({"email": email})
         if existing_user:
             return jsonify({
                 "error": "An account with this email already exists."
@@ -191,21 +192,28 @@ def signup():
             "last_login": now_iso
         }
 
-        users_col.insert_one(new_user)
-        token = generate_jwt_token(user_id, email)
+        try:
+            users_col.insert_one(new_user)
+        except (ConnectionError, PyMongoError):
+            return jsonify({
+                "error": "Database Connection Failed",
+                "message": "Unable to connect to MongoDB Atlas. Registration was not saved."
+            }), 503
+
+        token = str(generate_jwt_token(user_id, email))
 
         # Record audit event
-        log_audit_event(user_id, "REGISTER", metadata={"email": email, "organization": organization})
+        log_audit_event(user_id, "SIGNUP", metadata={"email": email, "organization": organization})
 
         return jsonify({
             "user": format_user_response(new_user),
             "token": token
         }), 201
 
-    except ConnectionError as ce:
+    except (ConnectionError, PyMongoError):
         return jsonify({
             "error": "Database Connection Failed",
-            "message": f"MongoDB Atlas connection failure: {str(ce)}"
+            "message": "Unable to connect to MongoDB Atlas. Registration was not saved."
         }), 503
     except Exception as e:
         if "E11000" in str(e) or "DuplicateKeyError" in str(e):
@@ -228,13 +236,12 @@ def login():
 
         try:
             users_col = get_users_collection()
-        except ConnectionError as ce:
+            user_doc = users_col.find_one({"email": email})
+        except (ConnectionError, PyMongoError):
             return jsonify({
                 "error": "Database Connection Failed",
-                "message": f"Unable to connect to MongoDB Atlas database: {str(ce)}"
+                "message": "Unable to connect to MongoDB Atlas. Sign-in was not completed."
             }), 503
-
-        user_doc = users_col.find_one({"email": email})
 
         if not user_doc or not check_password_hash(user_doc.get('password_hash', ''), password):
             return jsonify({
@@ -252,7 +259,7 @@ def login():
         except Exception:
             pass
 
-        token = generate_jwt_token(user_id, email)
+        token = str(generate_jwt_token(user_id, email))
 
         # Record audit event
         log_audit_event(user_id, "LOGIN", metadata={"email": email})
@@ -262,10 +269,10 @@ def login():
             "token": token
         }), 200
 
-    except ConnectionError as ce:
+    except (ConnectionError, PyMongoError):
         return jsonify({
             "error": "Database Connection Failed",
-            "message": f"MongoDB Atlas connection failure: {str(ce)}"
+            "message": "Unable to connect to MongoDB Atlas. Sign-in was not completed."
         }), 503
     except Exception:
         return jsonify({

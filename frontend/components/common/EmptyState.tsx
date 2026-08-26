@@ -20,20 +20,20 @@ export function EmptyState({
 }: EmptyStateProps) {
   if (type === 'no-exceptions' || type === 'reconciled-all') {
     return (
-      <div className="text-center py-16 px-6 bg-white border border-slate-200 rounded-lg">
-        <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
-          <ShieldCheck size={24} />
+      <div className="card-panel text-center py-16 px-6 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg">
+          <ShieldCheck size={28} />
         </div>
-        <h3 className="text-base font-semibold text-slate-900 mb-1">
-          {title || 'All Settlements Clean'}
+        <h3 className="text-base font-bold text-white mb-1">
+          {title || 'All Settlements Clean & Reconciled'}
         </h3>
-        <p className="text-sm text-slate-500 max-w-md mx-auto mb-5">
-          {description || 'No reconciliation exceptions require immediate attention. All payment gateway batches match bank records.'}
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          {description || 'Zero open exceptions requiring immediate action. All gateway batches align with bank records.'}
         </p>
         {actionLabel && onAction && (
-          <button onClick={onAction} className="btn btn-secondary btn-sm">
-            <RefreshCw size={14} />
-            {actionLabel}
+          <button onClick={onAction} className="btn btn-secondary btn-sm mx-auto">
+            <RefreshCw size={13} />
+            <span>{actionLabel}</span>
           </button>
         )}
       </div>
@@ -42,20 +42,20 @@ export function EmptyState({
 
   if (type === 'error') {
     return (
-      <div className="text-center py-16 px-6 bg-white border border-rose-200 rounded-lg">
-        <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle size={24} />
+      <div className="card-panel text-center py-16 px-6 border-rose-800/40 bg-rose-950/20 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-rose-950/80 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-lg">
+          <AlertTriangle size={28} />
         </div>
-        <h3 className="text-base font-semibold text-slate-900 mb-1">
-          {title || 'Unable to Connect to Reconciliation Engine'}
+        <h3 className="text-base font-bold text-white mb-1">
+          {title || 'Reconciliation Engine Connectivity Issue'}
         </h3>
-        <p className="text-sm text-slate-500 max-w-md mx-auto mb-5">
-          {description || 'Verify the Flask settlement service is running at localhost:5000 and try again.'}
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          {description || 'Verify backend settlement service at localhost:5000 and retry.'}
         </p>
         {onAction && (
-          <button onClick={onAction} className="btn btn-primary btn-sm">
-            <RefreshCw size={14} />
-            {actionLabel || 'Retry Connection'}
+          <button onClick={onAction} className="btn btn-primary btn-sm mx-auto">
+            <RefreshCw size={13} />
+            <span>{actionLabel || 'Retry Connection'}</span>
           </button>
         )}
       </div>
@@ -64,19 +64,19 @@ export function EmptyState({
 
   // type === 'no-results'
   return (
-    <div className="text-center py-12 px-6 bg-slate-50 border border-dashed border-slate-200 rounded-lg">
-      <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-        <SearchX size={20} />
+    <div className="card-panel text-center py-14 px-6 border-dashed border-slate-700 bg-slate-900/40 space-y-3">
+      <div className="w-12 h-12 rounded-xl bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center justify-center mx-auto">
+        <SearchX size={22} />
       </div>
-      <h3 className="text-sm font-semibold text-slate-800 mb-1">
-        {title || 'No Matching Transactions'}
+      <h3 className="text-sm font-bold text-white mb-1">
+        {title || 'No Matching Ledger Records Found'}
       </h3>
-      <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
-        {description || 'Try adjusting your search criteria, rail filters, or exception status filters.'}
+      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+        {description || 'Adjust your search parameters, rail instruments, or risk filters.'}
       </p>
       {actionLabel && onAction && (
-        <button onClick={onAction} className="btn btn-secondary btn-sm">
-          {actionLabel}
+        <button onClick={onAction} className="btn btn-secondary btn-sm mx-auto">
+          <span>{actionLabel}</span>
         </button>
       )}
     </div>

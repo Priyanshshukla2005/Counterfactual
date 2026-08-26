@@ -11,9 +11,6 @@ import { StatusBadge, RiskBadge, RailBadge, SettlementStatusBadge } from '@/comp
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
 } from '@/components/ui/sheet'
 import {
   Sparkles,
@@ -25,6 +22,7 @@ import {
   FileSpreadsheet,
   Layers,
   X,
+  Calendar,
 } from 'lucide-react'
 
 interface TransactionDrawerProps {
@@ -45,10 +43,13 @@ export function TransactionDrawer({
   const isException = transaction.status === 'Exception'
   const variance = Math.abs(transaction.difference ?? 0)
   const severity = getExceptionSeverity(transaction.exceptionType)
+  const isDuplicate = transaction.exceptionType === 'DUPLICATE'
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
+
+  const settlementEvents = transaction.settlementEvents || []
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -58,7 +59,7 @@ export function TransactionDrawer({
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Transaction Audit
+                Transaction Audit & Reconciliation
               </span>
               <RiskBadge risk={severity} />
             </div>
@@ -97,7 +98,7 @@ export function TransactionDrawer({
           {/* Hero Exposure Box */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>Verified Ledger Discrepancy</span>
+              <span>Verified Ledger Variance</span>
               <span className="font-semibold text-slate-700">{transaction.date}</span>
             </div>
             <div className="flex items-baseline justify-between">
@@ -115,6 +116,44 @@ export function TransactionDrawer({
               </span>
             </div>
           </div>
+
+          {/* Multi-event Settlement Breakdown for Duplicates */}
+          {settlementEvents.length > 1 && (
+            <div className="p-3.5 bg-amber-50/70 border border-amber-300 rounded-lg space-y-2 text-xs">
+              <div className="flex items-center gap-2 text-amber-900 font-bold">
+                <AlertTriangle size={14} className="text-amber-700" />
+                <span>Multiple Settlement Disbursements Detected ({settlementEvents.length} Events)</span>
+              </div>
+              <p className="text-amber-800 text-[11px]">
+                The gateway batch journal recorded repeated settlement credits for this single transaction reference.
+              </p>
+
+              <div className="divide-y divide-amber-200/80 bg-white/80 rounded-md border border-amber-200 text-xs">
+                {settlementEvents.map((ev, i) => (
+                  <div key={ev.event_id || i} className="p-2 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-800 mono-id">{ev.event_id}</span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Date: {ev.settlement_date || transaction.date}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <strong className="text-slate-900 tabular-nums">
+                        {formatCurrency(ev.actual_settlement)}
+                      </strong>
+                      <span
+                        className={`text-[10px] block font-semibold ${
+                          i > 0 ? 'text-amber-700' : 'text-slate-600'
+                        }`}
+                      >
+                        {i > 0 ? 'Duplicate Credit' : 'Initial Credit'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Visual Reconciliation Flow */}
           <div className="space-y-2">
@@ -139,7 +178,7 @@ export function TransactionDrawer({
                   variance > 0 ? 'border-rose-300 bg-rose-50/50' : ''
                 }`}
               >
-                <div className="recon-node-label">Actual Settlement</div>
+                <div className="recon-node-label">Actual Total Settlement</div>
                 <div
                   className={`recon-node-value tabular-nums ${
                     variance > 0 ? 'text-rose-700' : 'text-slate-900'
@@ -159,7 +198,7 @@ export function TransactionDrawer({
 
             <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100 text-xs">
               <div className="p-2.5 flex justify-between">
-                <span className="text-slate-500">Transaction Amount:</span>
+                <span className="text-slate-500">Gross Transaction Value:</span>
                 <strong className="text-slate-900 tabular-nums">
                   {formatCurrency(transaction.grossAmount || transaction.actualAmount)}
                 </strong>
@@ -173,7 +212,7 @@ export function TransactionDrawer({
               </div>
 
               <div className="p-2.5 flex justify-between">
-                <span className="text-slate-500">Applicable Tax / GST:</span>
+                <span className="text-slate-500">Applicable GST / Tax:</span>
                 <span className="text-slate-700 tabular-nums">
                   {formatCurrency(transaction.tax ?? 0)}
                 </span>
@@ -202,8 +241,8 @@ export function TransactionDrawer({
               </div>
               <p className="text-amber-900 leading-relaxed">
                 The settlement reconciliation engine detected an imbalance of{' '}
-                <strong>{formatCurrency(variance)}</strong> between the merchant expected
-                receivable and the payment processor settlement credit.
+                <strong>{formatCurrency(variance)}</strong> between the expected merchant receivable
+                and total recorded processor settlements.
               </p>
             </div>
           )}
@@ -211,18 +250,16 @@ export function TransactionDrawer({
 
         {/* Drawer Footer */}
         <div className="drawer-footer">
-          {isException && (
-            <button
-              onClick={() => {
-                onOpenCounterfactual(transaction.id)
-                onClose()
-              }}
-              className="btn btn-primary flex-1"
-            >
-              <Sparkles size={15} />
-              <span>Simulate Counterfactual</span>
-            </button>
-          )}
+          <button
+            onClick={() => {
+              onOpenCounterfactual(transaction.id)
+              onClose()
+            }}
+            className="btn btn-primary flex-1"
+          >
+            <Sparkles size={15} />
+            <span>Simulate in Counterfactual Studio</span>
+          </button>
 
           <button onClick={onClose} className="btn btn-secondary">
             <span>Close</span>

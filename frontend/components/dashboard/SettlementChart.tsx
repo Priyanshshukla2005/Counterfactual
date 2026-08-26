@@ -3,6 +3,14 @@
 import React, { useMemo, useState } from 'react'
 import type { Transaction, SettlementTimelinePoint } from '@/types'
 import { formatCurrency, formatCompactCurrency } from '@/lib/api'
+import {
+  TrendingUp,
+  BarChart2,
+  Calendar,
+  Layers,
+  Sparkles,
+  Filter,
+} from 'lucide-react'
 
 interface SettlementChartProps {
   transactions: Transaction[]
@@ -79,8 +87,8 @@ export function SettlementChart({
 
   // SVG Chart dimensions
   const width = 640
-  const height = 200
-  const padding = { top: 20, right: 20, bottom: 30, left: 45 }
+  const height = 220
+  const padding = { top: 25, right: 25, bottom: 35, left: 55 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
@@ -127,291 +135,297 @@ export function SettlementChart({
   const hoveredPoint = hoveredIndex !== null ? timelineData[hoveredIndex] : null
 
   return (
-    <div className="card-panel">
+    <div className="card-panel h-full flex flex-col justify-between">
       <div className="card-panel-header">
         <div>
-          <h2 className="card-panel-title">Settlement Performance</h2>
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Settlement Telemetry</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+          </div>
+          <h2 className="card-panel-title text-base font-bold">Settlement Performance Dynamics</h2>
           <p className="card-panel-subtitle">
-            Expected vs actual settlement aggregated by transaction date
+            Expected receivable vs actual bank credit across batch cycles
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex p-0.5 bg-slate-100 rounded-md text-xs font-medium border border-slate-200">
+          <div className="flex p-0.5 bg-slate-900/90 rounded-lg text-xs font-medium border border-slate-800">
             <button
               onClick={() => setViewMode('daily')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded-md transition ${
                 viewMode === 'daily'
-                  ? 'bg-white text-indigo-600 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              By Date ({timelineData.length} Days)
+              Timeline View
             </button>
             <button
               onClick={() => setViewMode('rail')}
-              className={`px-2.5 py-1 rounded transition ${
+              className={`px-2.5 py-1 rounded-md transition ${
                 viewMode === 'rail'
-                  ? 'bg-white text-indigo-600 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              By Rail
+              Rail Matrix
             </button>
           </div>
         </div>
       </div>
 
-      <div className="card-panel-body">
-        {/* Metric summary banner */}
-        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2 pb-4 mb-4 border-b border-slate-100">
-          <div>
-            <span className="text-xs text-slate-500 block">Expected Total</span>
-            <strong className="text-xl font-bold text-slate-900 tabular-nums">
-              {formatCurrency(expectedTotal)}
-            </strong>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500 block">Actual Total</span>
-            <strong className="text-xl font-bold text-indigo-600 tabular-nums">
-              {formatCurrency(actualTotal)}
-            </strong>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500 block">Net Discrepancy</span>
-            <strong className="text-xl font-bold text-rose-600 tabular-nums">
-              {formatCurrency(unreconciledAmount)}
-            </strong>
-          </div>
-
-          {/* Legend */}
-          <div className="ml-auto flex items-center gap-4 text-xs font-medium text-slate-600">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-1 bg-indigo-600 rounded-full" />
-              <span>Actual Settlement</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-1 bg-slate-400 rounded-full border-dashed" />
-              <span>Expected Settlement</span>
-            </div>
-          </div>
-        </div>
-
+      <div className="card-panel-body flex-1 flex flex-col justify-between gap-4">
         {viewMode === 'daily' ? (
-          <div className="relative w-full overflow-hidden">
-            {/* SVG Visualizer */}
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              className="w-full h-auto overflow-visible select-none"
-              style={{ minHeight: '190px' }}
-            >
-              <defs>
-                <linearGradient id="settlementGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+          <>
+            {/* Legend & Hover Info */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b border-slate-800/80 text-xs">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 bg-indigo-400 rounded-full" />
+                  <span className="text-slate-400">Expected Settlement</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-1 bg-emerald-400 rounded-full" />
+                  <span className="text-slate-400">Actual Bank Credit</span>
+                </div>
+              </div>
 
-              {/* Horizontal Grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-                const y = padding.top + chartHeight * (1 - ratio)
-                const val = maxVal * ratio
-                return (
-                  <g key={ratio}>
-                    <line
-                      x1={padding.left}
-                      y1={y}
-                      x2={width - padding.right}
-                      y2={y}
-                      stroke="#f1f5f9"
-                      strokeWidth="1"
-                      strokeDasharray="4 4"
-                    />
-                    <text
-                      x={padding.left - 6}
-                      y={y + 3}
-                      textAnchor="end"
-                      fontSize="9.5"
-                      fill="#94a3b8"
-                      fontFamily="sans-serif"
-                    >
-                      {formatCompactCurrency(val)}
-                    </text>
-                  </g>
-                )
-              })}
-
-              {/* Area Fill */}
-              {expectedArea && (
-                <path d={expectedArea} fill="url(#settlementGrad)" />
+              {hoveredPoint ? (
+                <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-3 py-1 rounded-lg text-xs">
+                  <span className="font-bold text-white">{hoveredPoint.label}:</span>
+                  <span className="text-indigo-300">Exp: {formatCurrency(hoveredPoint.expected)}</span>
+                  <span className="text-emerald-400">Act: {formatCurrency(hoveredPoint.actual)}</span>
+                  {hoveredPoint.variance > 0 && (
+                    <span className="text-rose-400 font-bold">
+                      Δ -{formatCurrency(hoveredPoint.variance)}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
+                  Hover points on chart for granular audit details
+                </span>
               )}
+            </div>
 
-              {/* Baseline Expected line */}
-              {expectedPath && (
+            {/* SVG Interactive Chart */}
+            <div className="relative w-full overflow-hidden">
+              <svg
+                viewBox={`0 0 ${width} ${height}`}
+                className="w-full h-auto overflow-visible select-none"
+              >
+                <defs>
+                  {/* Glowing 3D Area Gradient */}
+                  <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity="0.35" />
+                    <stop offset="70%" stopColor="#6366f1" stopOpacity="0.05" />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                  </linearGradient>
+
+                  <linearGradient id="lineGradExpected" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#818cf8" />
+                    <stop offset="100%" stopColor="#c084fc" />
+                  </linearGradient>
+
+                  <linearGradient id="lineGradActual" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#38bdf8" />
+                  </linearGradient>
+                </defs>
+
+                {/* Horizontal Grid lines */}
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                  const y = padding.top + chartHeight * (1 - ratio)
+                  const val = maxVal * ratio
+                  return (
+                    <g key={ratio}>
+                      <line
+                        x1={padding.left}
+                        y1={y}
+                        x2={width - padding.right}
+                        y2={y}
+                        stroke="rgba(255, 255, 255, 0.06)"
+                        strokeDasharray="3 3"
+                      />
+                      <text
+                        x={padding.left - 8}
+                        y={y + 3}
+                        textAnchor="end"
+                        fill="#64748b"
+                        fontSize="9"
+                        fontWeight="600"
+                      >
+                        {formatCompactCurrency(val)}
+                      </text>
+                    </g>
+                  )
+                })}
+
+                {/* Area Fill */}
+                <path d={expectedArea} fill="url(#areaGradient)" />
+
+                {/* Expected Line */}
                 <path
                   d={expectedPath}
                   fill="none"
-                  stroke="#94a3b8"
-                  strokeWidth="2"
-                  strokeDasharray="3 3"
+                  stroke="url(#lineGradExpected)"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-              )}
 
-              {/* Actual Settled line */}
-              {actualPath && (
+                {/* Actual Line */}
                 <path
                   d={actualPath}
                   fill="none"
-                  stroke="#4f46e5"
-                  strokeWidth="2.5"
+                  stroke="url(#lineGradActual)"
+                  strokeWidth="2"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="4 2"
                 />
-              )}
 
-              {/* Interactive Data points */}
-              {timelineData.map((d, i) => {
-                const x = getX(i)
-                const yActual = getY(d.actual)
-                const isHovered = hoveredIndex === i
+                {/* Data Points and Hover Target Hitboxes */}
+                {timelineData.map((d, idx) => {
+                  const cx = getX(idx)
+                  const cyExpected = getY(d.expected)
+                  const cyActual = getY(d.actual)
+                  const isHovered = hoveredIndex === idx
 
-                return (
-                  <g
-                    key={d.date}
-                    onMouseEnter={() => setHoveredIndex(i)}
-                    onMouseLeave={() => setHoveredIndex(null)}
-                    className="cursor-pointer"
-                  >
-                    {/* Hover vertical line */}
-                    {isHovered && (
-                      <line
-                        x1={x}
-                        y1={padding.top}
-                        x2={x}
-                        y2={padding.top + chartHeight}
-                        stroke="#6366f1"
-                        strokeWidth="1.5"
-                        strokeDasharray="2 2"
+                  return (
+                    <g
+                      key={d.date}
+                      onMouseEnter={() => setHoveredIndex(idx)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                      className="cursor-pointer"
+                    >
+                      {/* Vertical crosshair line on hover */}
+                      {isHovered && (
+                        <line
+                          x1={cx}
+                          y1={padding.top}
+                          x2={cx}
+                          y2={padding.top + chartHeight}
+                          stroke="rgba(99, 102, 241, 0.6)"
+                          strokeWidth="1.5"
+                          strokeDasharray="2 2"
+                        />
+                      )}
+
+                      {/* Expected Dot */}
+                      <circle
+                        cx={cx}
+                        cy={cyExpected}
+                        r={isHovered ? 5 : 3.5}
+                        fill="#818cf8"
+                        stroke="#0f172a"
+                        strokeWidth="2"
+                        className="transition-all duration-150"
                       />
-                    )}
 
-                    {/* Point on actual line */}
-                    <circle
-                      cx={x}
-                      cy={yActual}
-                      r={isHovered ? 5 : 3.5}
-                      fill="#ffffff"
-                      stroke="#4f46e5"
-                      strokeWidth={isHovered ? 2.5 : 2}
-                    />
+                      {/* Actual Dot */}
+                      <circle
+                        cx={cx}
+                        cy={cyActual}
+                        r={isHovered ? 5 : 3}
+                        fill="#34d399"
+                        stroke="#0f172a"
+                        strokeWidth="1.5"
+                        className="transition-all duration-150"
+                      />
 
-                    {/* Invisible hit area */}
-                    <rect
-                      x={x - 15}
-                      y={padding.top}
-                      width={30}
-                      height={chartHeight}
-                      fill="transparent"
-                    />
-
-                    {/* X-axis date labels */}
-                    {(i === 0 ||
-                      i === timelineData.length - 1 ||
-                      i % Math.ceil(timelineData.length / 5) === 0) && (
+                      {/* X-axis Labels */}
                       <text
-                        x={x}
-                        y={height - 8}
+                        x={cx}
+                        y={height - 12}
                         textAnchor="middle"
-                        fontSize="10"
-                        fill="#64748b"
-                        fontWeight={isHovered ? '600' : '400'}
+                        fill={isHovered ? '#ffffff' : '#64748b'}
+                        fontSize="9"
+                        fontWeight={isHovered ? '700' : '500'}
                       >
                         {d.label}
                       </text>
-                    )}
-                  </g>
-                )
-              })}
-            </svg>
 
-            {/* Hover Tooltip Overlay */}
-            {hoveredPoint && hoveredIndex !== null && (
-              <div
-                className="absolute pointer-events-none bg-slate-900 text-white rounded-md p-3 shadow-xl text-xs z-20 border border-slate-700 transition-all"
-                style={{
-                  left: `${Math.min(
-                    85,
-                    Math.max(15, (getX(hoveredIndex) / width) * 100)
-                  )}%`,
-                  top: '10px',
-                  transform: 'translateX(-50%)',
-                }}
-              >
-                <div className="font-semibold text-slate-200 border-b border-slate-700 pb-1.5 mb-1.5 flex items-center justify-between gap-3">
-                  <span>Date: {hoveredPoint.label}</span>
-                  <span className="text-[10px] text-slate-400">
-                    {hoveredPoint.count} records
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-slate-400">Actual Settlement:</span>
-                    <span className="font-bold text-emerald-400 tabular-nums">
-                      {formatCurrency(hoveredPoint.actual)}
+                      {/* Invisible Large Hitbox for ease of hover */}
+                      <rect
+                        x={cx - chartWidth / (timelineData.length * 2)}
+                        y={padding.top}
+                        width={chartWidth / timelineData.length}
+                        height={chartHeight}
+                        fill="transparent"
+                      />
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+          </>
+        ) : (
+          /* Rail Breakdown Matrix View */
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {railData.map((item) => (
+                <div
+                  key={item.rail}
+                  className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="fintech-badge badge-rail">{item.rail}</span>
+                    <span className="text-xs font-bold text-slate-400">
+                      {item.count} Transactions
                     </span>
                   </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-slate-400">Expected Settlement:</span>
-                    <span className="font-bold text-slate-300 tabular-nums">
-                      {formatCurrency(hoveredPoint.expected)}
-                    </span>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">Expected Payout</span>
+                      <strong className="text-white tabular-nums">
+                        {formatCurrency(item.expected)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">Actual Settled</span>
+                      <strong className="text-emerald-400 tabular-nums">
+                        {formatCurrency(item.actual)}
+                      </strong>
+                    </div>
                   </div>
-                  {hoveredPoint.variance > 0 && (
-                    <div className="flex justify-between gap-4 pt-1 border-t border-slate-800 text-rose-400">
-                      <span>Discrepancy:</span>
-                      <span className="font-bold tabular-nums">
-                        {formatCurrency(hoveredPoint.variance)}
-                      </span>
+
+                  {item.variance > 0 && (
+                    <div className="text-[11px] text-rose-400 font-semibold pt-1 border-t border-slate-800 flex justify-between">
+                      <span>Variance Exposure:</span>
+                      <span className="tabular-nums">-{formatCurrency(item.variance)}</span>
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Rail Breakdown View */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 py-2">
-            {railData.map((item) => (
-              <div
-                key={item.rail}
-                className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="fintech-badge badge-rail">{item.rail}</span>
-                  <span className="text-[11px] text-slate-500">{item.count} records</span>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500">Actual Settlement</div>
-                  <div className="text-base font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(item.actual)}
-                  </div>
-                </div>
-                <div className="flex justify-between text-xs text-slate-500 pt-1 border-t border-slate-200">
-                  <span>Variance:</span>
-                  <span
-                    className={
-                      item.variance > 0
-                        ? 'text-rose-600 font-semibold'
-                        : 'text-emerald-600 font-semibold'
-                    }
-                  >
-                    {formatCurrency(item.variance)}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
+
+        {/* Bottom Summary Bar */}
+        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-800/80 text-xs text-center">
+          <div className="p-2 bg-slate-900/60 rounded-lg">
+            <span className="text-[10px] text-slate-400 block uppercase font-medium">Expected Total</span>
+            <strong className="text-indigo-300 font-bold tabular-nums">
+              {formatCurrency(expectedTotal)}
+            </strong>
+          </div>
+
+          <div className="p-2 bg-slate-900/60 rounded-lg">
+            <span className="text-[10px] text-slate-400 block uppercase font-medium">Actual Settled</span>
+            <strong className="text-emerald-400 font-bold tabular-nums">
+              {formatCurrency(actualTotal)}
+            </strong>
+          </div>
+
+          <div className="p-2 bg-slate-900/60 rounded-lg">
+            <span className="text-[10px] text-slate-400 block uppercase font-medium">Net Discrepancy</span>
+            <strong className="text-rose-400 font-bold tabular-nums">
+              {formatCurrency(unreconciledAmount)}
+            </strong>
+          </div>
+        </div>
       </div>
     </div>
   )
