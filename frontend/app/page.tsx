@@ -28,7 +28,9 @@ import { TransactionFilters } from '@/components/transactions/TransactionFilters
 import { TransactionTable } from '@/components/transactions/TransactionTable'
 import { TransactionDrawer } from '@/components/transactions/TransactionDrawer'
 import { CounterfactualStudio } from '@/components/counterfactual/CounterfactualStudio'
+import { MonitoringDashboard } from '@/components/monitoring/MonitoringDashboard'
 import { ReportAnalytics } from '@/components/reports/ReportAnalytics'
+import { DemoStudioModal } from '@/components/demo/DemoStudioModal'
 import { DashboardSkeleton } from '@/components/common/LoadingSkeleton'
 import { EmptyState } from '@/components/common/EmptyState'
 
@@ -52,6 +54,7 @@ function DashboardApp() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -76,6 +79,7 @@ function DashboardApp() {
       Transactions: 'transactions',
       Exceptions: 'exceptions',
       Counterfactuals: 'counterfactuals',
+      Monitoring: 'monitoring',
       Reports: 'reports',
     }
 
@@ -136,6 +140,7 @@ function DashboardApp() {
       { id: 'transactions', section: 'Transactions' },
       { id: 'exceptions', section: 'Exceptions' },
       { id: 'counterfactuals', section: 'Counterfactuals' },
+      { id: 'monitoring', section: 'Monitoring' },
       { id: 'reports', section: 'Reports' },
     ]
 
@@ -315,6 +320,7 @@ function DashboardApp() {
         totalExceptions={totalExceptions}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        onOpenDemo={() => setIsDemoOpen(true)}
       />
 
       <div className="main-wrapper">
@@ -326,6 +332,7 @@ function DashboardApp() {
           onSync={() => loadData(false)}
           isSyncing={isSyncing}
           onOpenMobile={() => setMobileOpen(true)}
+          onOpenDemo={() => setIsDemoOpen(true)}
         />
 
         {/* Continuous Vertically Scrollable Workspace */}
@@ -622,13 +629,20 @@ function DashboardApp() {
               </section>
 
               {/* =========================================================
-                  SECTION 5: EXECUTIVE REPORTS & AUDIT
+                  SECTION 5: CLOSED-LOOP MONITORING & OUTCOME TRACKING
+              ========================================================= */}
+              <section id="monitoring" className="scroll-mt-24 pt-10 border-t border-slate-800/80 space-y-6">
+                <MonitoringDashboard />
+              </section>
+
+              {/* =========================================================
+                  SECTION 6: EXECUTIVE REPORTS & AUDIT
               ========================================================= */}
               <section id="reports" className="scroll-mt-24 pt-10 border-t border-slate-800/80 space-y-6">
                 <div className="page-header">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="eyebrow text-emerald-400">Executive Audit // Section 05</span>
+                      <span className="eyebrow text-emerald-400">Executive Audit // Section 06</span>
                       <BarChart3 size={14} className="text-emerald-400" />
                     </div>
                     <h2 className="page-title text-xl font-bold">Executive Reports & Audit Trail</h2>
@@ -658,6 +672,12 @@ function DashboardApp() {
         open={!!selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
         onOpenCounterfactual={handleSimulateCounterfactual}
+      />
+
+      {/* Interactive 8-Stage Demo Studio Modal */}
+      <DemoStudioModal
+        isOpen={isDemoOpen}
+        onClose={() => setIsDemoOpen(false)}
       />
     </div>
   )

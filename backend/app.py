@@ -10,11 +10,18 @@ from reconciliation import reconcile
 from explanation_engine import generate_explanation
 from counterfactual_engine import calculate_counterfactual, generate_multi_scenario_comparison
 from auth import auth_bp, require_auth, log_audit_event
+from execution import execution_bp
+from monitoring import monitoring_bp
+from demo import demo_bp
+from rag import rag_bp
 from database import (
     init_database,
     is_mongodb_live,
     get_simulations_collection,
     get_audit_events_collection,
+    get_executions_collection,
+    get_outcomes_collection,
+    get_rag_chunks_collection,
 )
 
 app = Flask(__name__)
@@ -30,6 +37,10 @@ CORS(
 )
 
 app.register_blueprint(auth_bp)
+app.register_blueprint(execution_bp)
+app.register_blueprint(monitoring_bp)
+app.register_blueprint(demo_bp)
+app.register_blueprint(rag_bp)
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "counterfactual_phase1_transactions.csv")
 

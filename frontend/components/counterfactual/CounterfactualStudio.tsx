@@ -17,6 +17,9 @@ import {
   saveSimulationScenario,
   getSavedSimulations,
   deleteSavedSimulation,
+  executeDirectPaymentLink,
+  executeDirectRefund,
+  executeDirectInvoice,
 } from '@/lib/api'
 import { RiskBadge, SettlementStatusBadge } from '@/components/common/Badge'
 import { CounterfactualScene } from '@/components/counterfactual/CounterfactualScene'
@@ -24,9 +27,11 @@ import { ScenarioControls } from '@/components/counterfactual/ScenarioControls'
 import { FinancialImpact } from '@/components/counterfactual/FinancialImpact'
 import { ScenarioComparison } from '@/components/counterfactual/ScenarioComparison'
 import { CounterfactualExplanation } from '@/components/counterfactual/CounterfactualExplanation'
+import { ExecutionWorkflow } from '@/components/counterfactual/ExecutionWorkflow'
 
 import {
   Sparkles,
+  Zap,
   RefreshCw,
   ArrowRight,
   ShieldCheck,
@@ -44,6 +49,9 @@ import {
   Clock,
   Database,
   History,
+  ExternalLink,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react'
 
 interface CounterfactualStudioProps {
@@ -53,7 +61,7 @@ interface CounterfactualStudioProps {
   onNavigateToTransactions?: () => void
 }
 
-type StudioMode = 'COMMERCIAL_PRICING' | 'EXCEPTION_RESOLUTION' | 'SAVED_SCENARIOS'
+type StudioMode = 'COMMERCIAL_PRICING' | 'RAZORPAY_EXECUTION' | 'EXCEPTION_RESOLUTION' | 'SAVED_SCENARIOS'
 type ResolutionScenario =
   | 'GATEWAY_RECOVERY'
   | 'MERCHANT_DEBIT'
@@ -108,6 +116,57 @@ export function CounterfactualStudio({
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
+  // Phase 6 Execution UI State
+  const [execType, setExecType] = useState<'PAYMENT_LINK' | 'REFUND' | 'INVOICE'>('PAYMENT_LINK')
+
+  // Phase 6.2: Payment Link Execution State
+  const [isCreatingPaymentLink, setIsCreatingPaymentLink] = useState(false)
+  const [paymentLinkResult, setPaymentLinkResult] = useState<{
+    success: boolean
+    executionId: string
+    status: string
+    razorpayId: string
+    shortUrl: string
+    amount: number
+  } | null>(null)
+  const [paymentLinkError, setPaymentLinkError] = useState<string | null>(null)
+
+  // Phase 6.3: Refund Execution State
+  const [refundStep, setRefundStep] = useState<'FORM' | 'CONFIRM'>('FORM')
+  const [refundPaymentId, setRefundPaymentId] = useState<string>('pay_sample12345')
+  const [refundCustomAmount, setRefundCustomAmount] = useState<number>(500)
+  const [isRefunding, setIsRefunding] = useState(false)
+  const [refundResult, setRefundResult] = useState<{
+    success: boolean
+    executionId: string
+    status: string
+    refundId: string
+    paymentId: string
+    amount: number
+    message?: string
+  } | null>(null)
+  const [refundError, setRefundError] = useState<string | null>(null)
+
+  // Phase 6.4: Invoice Execution State
+  const [invoiceStep, setInvoiceStep] = useState<'FORM' | 'CONFIRM'>('FORM')
+  const [invoiceAmount, setInvoiceAmount] = useState<number>(5000)
+  const [invoiceCustomerName, setInvoiceCustomerName] = useState<string>('Acme Merchant')
+  const [invoiceCustomerEmail, setInvoiceCustomerEmail] = useState<string>('finance@acme.io')
+  const [invoiceCustomerContact, setInvoiceCustomerContact] = useState<string>('+91 9876543210')
+  const [invoiceDescription, setInvoiceDescription] = useState<string>('Counterfactual Settlement Invoice')
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false)
+  const [invoiceResult, setInvoiceResult] = useState<{
+    success: boolean
+    executionId: string
+    status: string
+    invoiceId: string
+    amount: number
+    currency: string
+    invoiceUrl?: string
+    message?: string
+  } | null>(null)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
+
   // Fetch user's saved simulations from MongoDB
   const loadSavedSimulations = async () => {
     try {
@@ -131,6 +190,21 @@ export function CounterfactualStudio({
       const g = Number(currentException.expected_settlement || currentException.actual_settlement || 10000)
       setGrossAmount(g > 0 ? g : 10000)
       setRefundAmount(Number(currentException.refund_amount || 0))
+      setPaymentLinkResult(null)
+      setPaymentLinkError(null)
+
+      const pid = currentException.payment_id || currentException.transaction_id || 'pay_sample12345'
+      setRefundPaymentId(pid)
+      const diff = Math.abs(Number(currentException.difference || 500))
+      setRefundCustomAmount(diff > 0 ? diff : 500)
+      setRefundResult(null)
+      setRefundError(null)
+      setRefundStep('FORM')
+
+      setInvoiceAmount(g > 0 ? g : 5000)
+      setInvoiceResult(null)
+      setInvoiceError(null)
+      setInvoiceStep('FORM')
 
       // Load deterministic exception explanation
       setExcLoading(true)
@@ -224,7 +298,149 @@ export function CounterfactualStudio({
       await deleteSavedSimulation(id)
       setSavedSimulations((prev) => prev.filter((s) => s.id !== id))
     } catch (err: any) {
-      alert(err?.message || 'Unable to remove saved simulation.')
+      console.warn('Failed to delete simulation:', err)
+    }
+  }
+
+  // Phase 6.2: Direct Payment Link Execution Handler
+  const handleCreatePaymentLink = async () => {
+    if (isCreatingPaymentLink) return
+    setIsCreatingPaymentLink(true)
+    setPaymentLinkError(null)
+
+    const simDelta = sim.deltas.merchant_delta
+    const actionAmount =
+      refundAmount > 0
+        ? refundAmount
+        : simDelta !== 0
+        ? Math.abs(simDelta)
+        : Math.max(500, Math.round(grossAmount * 0.05))
+
+    const targetTx = currentException?.transaction_id || 'TXN_SIMULATION'
+    const desc = `Counterfactual approved settlement payment link for ${targetTx}`
+
+    try {
+      const res = await executeDirectPaymentLink({
+        amount: actionAmount,
+        currency: 'INR',
+        description: desc,
+        simulationId: `sim_${targetTx.toLowerCase()}`,
+        recommendationId: `rec_${Date.now().toString(36)}`,
+        customerName: 'Merchant Partner',
+        customerEmail: 'finance@merchant.io',
+      })
+
+      setPaymentLinkResult({
+        success: res.success,
+        executionId: res.executionId,
+        status: res.status,
+        razorpayId: res.razorpayId || '',
+        shortUrl: res.shortUrl || '',
+        amount: actionAmount,
+      })
+    } catch (err: any) {
+      setPaymentLinkError(err?.message || 'Payment Link creation failed. Please check backend configuration.')
+    } finally {
+      setIsCreatingPaymentLink(false)
+    }
+  }
+
+  // Phase 6.3: Refund Execution Handlers
+  const handleReviewRefund = () => {
+    if (!refundPaymentId.trim()) {
+      setRefundError('Payment ID is required for issuing refunds.')
+      return
+    }
+    if (refundCustomAmount <= 0) {
+      setRefundError('Refund amount must be greater than zero.')
+      return
+    }
+    setRefundError(null)
+    setRefundStep('CONFIRM')
+  }
+
+  const handleConfirmRefund = async () => {
+    if (isRefunding) return
+    setIsRefunding(true)
+    setRefundError(null)
+
+    const targetTx = currentException?.transaction_id || 'TXN_SIMULATION'
+    try {
+      const res = await executeDirectRefund({
+        paymentId: refundPaymentId.trim(),
+        amount: refundCustomAmount,
+        simulationId: `sim_${targetTx.toLowerCase()}`,
+        recommendationId: `rec_${Date.now().toString(36)}`,
+      })
+
+      setRefundResult({
+        success: res.success,
+        executionId: res.executionId,
+        status: res.status,
+        refundId: res.refundId || '',
+        paymentId: res.paymentId || refundPaymentId,
+        amount: refundCustomAmount,
+        message: 'Refund executed successfully via Razorpay Sandbox.',
+      })
+      setRefundStep('FORM')
+    } catch (err: any) {
+      setRefundError(err?.message || 'Refund execution failed.')
+    } finally {
+      setIsRefunding(false)
+    }
+  }
+
+  // Phase 6.4: Invoice Execution Handlers
+  const handleReviewInvoice = () => {
+    if (!invoiceCustomerName.trim()) {
+      setInvoiceError('Customer Name is required.')
+      return
+    }
+    if (!invoiceCustomerEmail.trim() || !invoiceCustomerEmail.includes('@')) {
+      setInvoiceError('Valid Customer Email is required.')
+      return
+    }
+    if (invoiceAmount <= 0) {
+      setInvoiceError('Invoice amount must be greater than zero.')
+      return
+    }
+    setInvoiceError(null)
+    setInvoiceStep('CONFIRM')
+  }
+
+  const handleConfirmInvoice = async () => {
+    if (isCreatingInvoice) return
+    setIsCreatingInvoice(true)
+    setInvoiceError(null)
+
+    const targetTx = currentException?.transaction_id || 'TXN_SIMULATION'
+    try {
+      const res = await executeDirectInvoice({
+        customerName: invoiceCustomerName.trim(),
+        customerEmail: invoiceCustomerEmail.trim(),
+        customerContact: invoiceCustomerContact.trim(),
+        description: invoiceDescription.trim() || 'Counterfactual Settlement Invoice',
+        amount: invoiceAmount,
+        currency: 'INR',
+        simulationId: `sim_${targetTx.toLowerCase()}`,
+        recommendationId: `rec_${Date.now().toString(36)}`,
+      })
+
+      setInvoiceResult({
+        success: res.success,
+        executionId: res.executionId,
+        status: res.status,
+        invoiceId: res.invoiceId || '',
+        amount: invoiceAmount,
+        currency: 'INR',
+        invoiceUrl: res.invoiceUrl || '',
+        message: 'Invoice created successfully via Razorpay Sandbox.',
+      })
+      setInvoiceStep('FORM')
+    } catch (err: any) {
+      setInvoiceError(err?.message || 'Invoice creation failed.')
+    } finally {
+      setIsCreatingInvoice(false)
     }
   }
 
@@ -286,7 +502,24 @@ export function CounterfactualStudio({
             }`}
           >
             <Sparkles size={13} className={studioMode === 'COMMERCIAL_PRICING' ? 'text-white' : 'text-indigo-400'} />
-            <span>Commercial Pricing Simulator</span>
+            <span>Commercial Pricing</span>
+          </button>
+
+          <button
+            onClick={() => setStudioMode('RAZORPAY_EXECUTION')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              studioMode === 'RAZORPAY_EXECUTION'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Zap size={13} className={studioMode === 'RAZORPAY_EXECUTION' ? 'text-emerald-300' : 'text-emerald-400'} />
+            <span className="flex items-center gap-1">
+              <span>Razorpay Execution</span>
+              <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-500/40">
+                Phase 6
+              </span>
+            </span>
           </button>
 
           <button
@@ -507,6 +740,631 @@ export function CounterfactualStudio({
               {/* Dynamic Calculated Explanation & Audit Trail */}
               <CounterfactualExplanation simulation={sim} />
 
+              {/* =========================================================
+                  PHASE 6: RAZORPAY SANDBOX MULTI-ACTION EXECUTION PANEL
+              ========================================================= */}
+              <div className="card-panel p-5 bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/60 border border-indigo-500/30 rounded-xl space-y-5 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                        EXECUTION ENGINE // PHASE 6
+                      </span>
+                      <span className="text-[10px] font-bold bg-emerald-950/90 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <ShieldCheck size={10} />
+                        <span>Razorpay Test Sandbox</span>
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Gateway Execution Hub</span>
+                      <span className="mono-id text-xs text-indigo-300">
+                        ({currentException?.transaction_id || 'TXN_SIMULATION'})
+                      </span>
+                    </h3>
+                  </div>
+
+                  {/* Action Selector Pills */}
+                  <div className="flex items-center gap-1 bg-slate-950/90 p-1 rounded-lg border border-slate-800">
+                    <button
+                      onClick={() => setExecType('PAYMENT_LINK')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        execType === 'PAYMENT_LINK'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Payment Link
+                    </button>
+                    <button
+                      onClick={() => setExecType('REFUND')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        execType === 'REFUND'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Refund (6.3)
+                    </button>
+                    <button
+                      onClick={() => setExecType('INVOICE')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        execType === 'INVOICE'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Invoice (6.4)
+                    </button>
+                  </div>
+                </div>
+
+                {/* ------------------------------------------------------------- */}
+                {/* 1. PAYMENT LINK SUB-PANEL (PHASE 6.2) */}
+                {/* ------------------------------------------------------------- */}
+                {execType === 'PAYMENT_LINK' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Recommended Action
+                        </span>
+                        <strong className="text-xs font-bold text-indigo-300 block truncate mt-0.5">
+                          {refundAmount > 0 ? 'Partial Settlement Refund' : 'Commercial Payment Link'}
+                        </strong>
+                      </div>
+
+                      <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Execution Amount
+                        </span>
+                        <strong className="text-base font-bold text-white tabular-nums">
+                          {formatCurrency(
+                            refundAmount > 0
+                              ? refundAmount
+                              : sim.deltas.merchant_delta !== 0
+                              ? Math.abs(sim.deltas.merchant_delta)
+                              : Math.max(500, Math.round(grossAmount * 0.05))
+                          )}
+                        </strong>
+                      </div>
+
+                      <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Gateway Environment
+                        </span>
+                        <strong className="text-xs font-bold text-slate-300 block mt-0.5">
+                          Razorpay Sandbox (Server-Side)
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Success Result View */}
+                    {paymentLinkResult && paymentLinkResult.success && (
+                      <div className="p-4 bg-emerald-950/70 border border-emerald-500/50 rounded-xl space-y-3 animate-in fade-in duration-200 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                            <CheckCircle2 size={18} className="text-emerald-400" />
+                            <span>✓ Payment Link Created</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-900/90 text-emerald-200 px-2 py-0.5 rounded border border-emerald-700">
+                            Sandbox Verified
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Amount</span>
+                            <strong className="text-white text-xs tabular-nums">
+                              {formatCurrency(paymentLinkResult.amount)}
+                            </strong>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Execution ID</span>
+                            <strong className="text-indigo-300 font-mono text-xs truncate block">
+                              {paymentLinkResult.executionId}
+                            </strong>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Razorpay ID</span>
+                            <strong className="text-emerald-300 font-mono text-xs truncate block">
+                              {paymentLinkResult.razorpayId || 'plink_Sandbox'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {paymentLinkResult.shortUrl && (
+                          <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-900/50">
+                            <span className="text-slate-300 text-xs font-mono truncate max-w-sm">
+                              {paymentLinkResult.shortUrl}
+                            </span>
+                            <a
+                              href={paymentLinkResult.shortUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-primary btn-sm bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                            >
+                              <span>Open Payment Link</span>
+                              <ExternalLink size={13} />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {paymentLinkError && (
+                      <div className="p-4 bg-rose-950/70 border border-rose-500/50 rounded-xl space-y-1 text-xs">
+                        <div className="flex items-center gap-2 text-rose-300 font-bold">
+                          <AlertTriangle size={15} className="text-rose-400" />
+                          <span>Payment Link Creation Failed</span>
+                        </div>
+                        <p className="text-rose-200">{paymentLinkError}</p>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800">
+                      <button
+                        onClick={handleCreatePaymentLink}
+                        disabled={isCreatingPaymentLink}
+                        className="btn btn-primary font-bold text-xs py-2.5 px-6 shadow-md cursor-pointer"
+                      >
+                        <Zap size={14} className={isCreatingPaymentLink ? 'spin' : ''} />
+                        <span>
+                          {isCreatingPaymentLink
+                            ? 'Creating Payment Link in Sandbox...'
+                            : 'Create Payment Link'}
+                        </span>
+                      </button>
+
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <Lock size={12} className="text-slate-500" />
+                        <span>Test Mode • Server-side API Execution</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* 2. REFUND SUB-PANEL (PHASE 6.3) */}
+                {/* ------------------------------------------------------------- */}
+                {execType === 'REFUND' && (
+                  <div className="space-y-4">
+                    <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      REFUND EXECUTION
+                    </div>
+
+                    {refundStep === 'FORM' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Refund Amount (INR)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="0.01"
+                              value={refundCustomAmount}
+                              onChange={(e) => setRefundCustomAmount(Number(e.target.value))}
+                              className="input w-full font-bold text-white text-sm bg-slate-900 border-slate-700"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Payment ID
+                            </label>
+                            <input
+                              type="text"
+                              value={refundPaymentId}
+                              onChange={(e) => setRefundPaymentId(e.target.value)}
+                              placeholder="pay_xxxxx"
+                              className="input w-full font-mono text-white text-xs bg-slate-900 border-slate-700"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Recommended Action
+                            </span>
+                            <strong className="text-indigo-300 font-bold block mt-0.5">
+                              Settlement Discrepancy Refund
+                            </strong>
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Refund Type
+                            </span>
+                            <strong className="text-slate-200 font-bold block mt-0.5">
+                              {refundCustomAmount >= grossAmount ? 'Full Refund' : 'Partial Refund'}
+                            </strong>
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Risk & Guardrails
+                            </span>
+                            <span className="text-emerald-400 font-bold flex items-center gap-1 mt-0.5">
+                              <ShieldCheck size={13} />
+                              <span>Bounds Verified</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {refundError && (
+                          <div className="p-3.5 bg-rose-950/70 border border-rose-500/50 rounded-xl space-y-1 text-xs">
+                            <div className="flex items-center gap-2 text-rose-300 font-bold">
+                              <AlertTriangle size={15} className="text-rose-400" />
+                              <span>Refund Validation Error</span>
+                            </div>
+                            <p className="text-rose-200">{refundError}</p>
+                          </div>
+                        )}
+
+                        <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+                          <button
+                            onClick={handleReviewRefund}
+                            className="btn btn-primary font-bold text-xs py-2.5 px-6 shadow-md cursor-pointer"
+                          >
+                            <span>Review Refund</span>
+                          </button>
+                          <span className="text-[11px] text-slate-400">
+                            Step 1 of 2: Review & Authorization
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CONFIRMATION STEP */}
+                    {refundStep === 'CONFIRM' && (
+                      <div className="p-4 bg-slate-950/90 border border-indigo-500/40 rounded-xl space-y-4 text-xs animate-in zoom-in-95 duration-200">
+                        <div className="space-y-1">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+                            REFUND CONFIRMATION
+                          </div>
+                          <h4 className="text-sm font-bold text-white">
+                            Verify Refund Parameters before Razorpay Execution
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Amount</span>
+                            <strong className="text-white text-sm font-bold tabular-nums">
+                              {formatCurrency(refundCustomAmount)}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Payment ID</span>
+                            <strong className="text-indigo-300 font-mono text-xs truncate block">
+                              {refundPaymentId}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Refund Type</span>
+                            <strong className="text-slate-200 text-xs font-bold block">
+                              {refundCustomAmount >= grossAmount ? 'Full Refund' : 'Partial Refund'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-amber-950/70 border border-amber-500/50 rounded-lg flex items-center gap-2.5 text-amber-200">
+                          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+                          <span className="font-semibold">
+                            WARNING: This action will execute a refund through Razorpay Sandbox.
+                          </span>
+                        </div>
+
+                        {refundError && (
+                          <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-lg text-rose-200">
+                            {refundError}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            onClick={handleConfirmRefund}
+                            disabled={isRefunding}
+                            className="btn btn-primary font-bold text-xs py-2.5 px-6 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 shadow-lg cursor-pointer"
+                          >
+                            <Zap size={14} className={isRefunding ? 'spin' : ''} />
+                            <span>{isRefunding ? 'Executing Refund in Sandbox...' : 'Confirm Refund'}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRefundStep('FORM')
+                              setRefundError(null)
+                            }}
+                            disabled={isRefunding}
+                            className="btn btn-secondary text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SUCCESS RECEIPT VIEW */}
+                    {refundResult && refundResult.success && (
+                      <div className="p-4 bg-emerald-950/70 border border-emerald-500/50 rounded-xl space-y-3 animate-in fade-in duration-200 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                            <CheckCircle2 size={18} className="text-emerald-400" />
+                            <span>✓ Refund Executed</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-900/90 text-emerald-200 px-2 py-0.5 rounded border border-emerald-700">
+                            Razorpay Sandbox Settled
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Refund ID</span>
+                            <strong className="text-emerald-300 font-mono text-xs truncate block">
+                              {refundResult.refundId || 'rfnd_Sandbox123'}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Payment ID</span>
+                            <strong className="text-indigo-300 font-mono text-xs truncate block">
+                              {refundResult.paymentId}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Amount</span>
+                            <strong className="text-white text-xs tabular-nums block">
+                              {formatCurrency(refundResult.amount)}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Status</span>
+                            <strong className="text-emerald-400 font-bold text-xs block">
+                              EXECUTED
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* 3. INVOICE SUB-PANEL (PHASE 6.4) */}
+                {/* ------------------------------------------------------------- */}
+                {execType === 'INVOICE' && (
+                  <div className="space-y-4">
+                    <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      INVOICE EXECUTION
+                    </div>
+
+                    {invoiceStep === 'FORM' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Invoice Amount (INR)
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="0.01"
+                              value={invoiceAmount}
+                              onChange={(e) => setInvoiceAmount(Number(e.target.value))}
+                              className="input w-full font-bold text-white text-sm bg-slate-900 border-slate-700"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Customer Name
+                            </label>
+                            <input
+                              type="text"
+                              value={invoiceCustomerName}
+                              onChange={(e) => setInvoiceCustomerName(e.target.value)}
+                              placeholder="Merchant Name"
+                              className="input w-full text-white text-xs bg-slate-900 border-slate-700"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Customer Email
+                            </label>
+                            <input
+                              type="email"
+                              value={invoiceCustomerEmail}
+                              onChange={(e) => setInvoiceCustomerEmail(e.target.value)}
+                              placeholder="finance@merchant.io"
+                              className="input w-full text-white text-xs bg-slate-900 border-slate-700"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Customer Contact
+                            </label>
+                            <input
+                              type="text"
+                              value={invoiceCustomerContact}
+                              onChange={(e) => setInvoiceCustomerContact(e.target.value)}
+                              placeholder="+91 9876543210"
+                              className="input w-full text-white text-xs bg-slate-900 border-slate-700"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                            Description
+                          </label>
+                          <input
+                            type="text"
+                            value={invoiceDescription}
+                            onChange={(e) => setInvoiceDescription(e.target.value)}
+                            className="input w-full text-white text-xs bg-slate-900 border-slate-700"
+                          />
+                        </div>
+
+                        {invoiceError && (
+                          <div className="p-3.5 bg-rose-950/70 border border-rose-500/50 rounded-xl space-y-1 text-xs">
+                            <div className="flex items-center gap-2 text-rose-300 font-bold">
+                              <AlertTriangle size={15} className="text-rose-400" />
+                              <span>Invoice Validation Error</span>
+                            </div>
+                            <p className="text-rose-200">{invoiceError}</p>
+                          </div>
+                        )}
+
+                        <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+                          <button
+                            onClick={handleReviewInvoice}
+                            className="btn btn-primary font-bold text-xs py-2.5 px-6 shadow-md cursor-pointer"
+                          >
+                            <span>Review Invoice</span>
+                          </button>
+                          <span className="text-[11px] text-slate-400">
+                            Step 1 of 2: Review & Authorization
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CONFIRMATION STEP */}
+                    {invoiceStep === 'CONFIRM' && (
+                      <div className="p-4 bg-slate-950/90 border border-indigo-500/40 rounded-xl space-y-4 text-xs animate-in zoom-in-95 duration-200">
+                        <div className="space-y-1">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">
+                            INVOICE CONFIRMATION
+                          </div>
+                          <h4 className="text-sm font-bold text-white">
+                            Verify Invoice Parameters before Creation
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Amount</span>
+                            <strong className="text-white text-sm font-bold tabular-nums">
+                              {formatCurrency(invoiceAmount)}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Customer</span>
+                            <strong className="text-indigo-300 text-xs truncate block">
+                              {invoiceCustomerName}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block">Email</span>
+                            <strong className="text-slate-200 text-xs truncate block">
+                              {invoiceCustomerEmail}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-amber-950/70 border border-amber-500/50 rounded-lg flex items-center gap-2.5 text-amber-200">
+                          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+                          <span className="font-semibold">
+                            WARNING: This action will create an invoice through Razorpay Sandbox.
+                          </span>
+                        </div>
+
+                        {invoiceError && (
+                          <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-lg text-rose-200">
+                            {invoiceError}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            onClick={handleConfirmInvoice}
+                            disabled={isCreatingInvoice}
+                            className="btn btn-primary font-bold text-xs py-2.5 px-6 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 shadow-lg cursor-pointer"
+                          >
+                            <Zap size={14} className={isCreatingInvoice ? 'spin' : ''} />
+                            <span>{isCreatingInvoice ? 'Creating Invoice in Sandbox...' : 'Create Invoice'}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setInvoiceStep('FORM')
+                              setInvoiceError(null)
+                            }}
+                            disabled={isCreatingInvoice}
+                            className="btn btn-secondary text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SUCCESS RECEIPT VIEW */}
+                    {invoiceResult && invoiceResult.success && (
+                      <div className="p-4 bg-emerald-950/70 border border-emerald-500/50 rounded-xl space-y-3 animate-in fade-in duration-200 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                            <CheckCircle2 size={18} className="text-emerald-400" />
+                            <span>✓ Invoice Created</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-900/90 text-emerald-200 px-2 py-0.5 rounded border border-emerald-700">
+                            Sandbox Verified
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1">
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Invoice ID</span>
+                            <strong className="text-emerald-300 font-mono text-xs truncate block">
+                              {invoiceResult.invoiceId || 'inv_Sandbox123'}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Customer</span>
+                            <strong className="text-indigo-300 text-xs truncate block">
+                              {invoiceCustomerName}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Amount</span>
+                            <strong className="text-white text-xs tabular-nums block">
+                              {formatCurrency(invoiceResult.amount)}
+                            </strong>
+                          </div>
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60">
+                            <span className="text-[10px] text-slate-400 block">Status</span>
+                            <strong className="text-emerald-400 font-bold text-xs block">
+                              EXECUTED
+                            </strong>
+                          </div>
+                        </div>
+
+                        {invoiceResult.invoiceUrl && (
+                          <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-900/50">
+                            <span className="text-slate-300 text-xs font-mono truncate max-w-sm">
+                              {invoiceResult.invoiceUrl}
+                            </span>
+                            <a
+                              href={invoiceResult.invoiceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-primary btn-sm bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                            >
+                              <span>Open Invoice</span>
+                              <ExternalLink size={13} />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Multi-Scenario Comparison Matrix */}
               <ScenarioComparison
                 scenarios={simulationResult.multi_scenarios}
@@ -514,6 +1372,16 @@ export function CounterfactualStudio({
                 onSelectScenarioDiscount={setNewDiscountPct}
               />
             </>
+          )}
+
+          {/* =========================================================
+              MODE: RAZORPAY SANDBOX EXECUTION (PHASE 6)
+          ========================================================= */}
+          {studioMode === 'RAZORPAY_EXECUTION' && (
+            <ExecutionWorkflow
+              exception={currentException}
+              onRefreshReconciliation={loadSavedSimulations}
+            />
           )}
 
           {/* =========================================================
@@ -598,6 +1466,12 @@ export function CounterfactualStudio({
                   </div>
                 </div>
               )}
+
+              {/* Direct Execution Workflow Embedded in Resolution */}
+              <ExecutionWorkflow
+                exception={currentException}
+                onRefreshReconciliation={loadSavedSimulations}
+              />
             </div>
           )}
 

@@ -255,10 +255,10 @@ export function TransactionDrawer({
               onOpenCounterfactual(transaction.id)
               onClose()
             }}
-            className="btn btn-primary flex-1"
+            className="btn btn-primary flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600"
           >
             <Sparkles size={15} />
-            <span>Simulate in Counterfactual Studio</span>
+            <span>Counterfactual Studio & Execution</span>
           </button>
 
           <button onClick={onClose} className="btn btn-secondary">

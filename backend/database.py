@@ -186,6 +186,32 @@ def _init_db_indexes(db):
         audit = db["audit_events"]
         audit.create_index([("user_id", 1)])
         audit.create_index([("timestamp", -1)])
+
+        executions = db["execution_records"]
+        executions.create_index([("execution_id", 1)], unique=True)
+        executions.create_index([("user_id", 1)])
+        executions.create_index([("tenant_id", 1)])
+        executions.create_index([("status", 1)])
+        executions.create_index([("requested_at", -1)])
+        executions.create_index([("idempotency_key", 1)])
+
+        outcomes = db["outcome_records"]
+        outcomes.create_index([("outcome_id", 1)], unique=True)
+        outcomes.create_index([("user_id", 1)])
+        outcomes.create_index([("tenant_id", 1)])
+        outcomes.create_index([("transaction_id", 1)])
+        outcomes.create_index([("execution_id", 1)])
+        outcomes.create_index([("simulation_id", 1)])
+        outcomes.create_index([("comparison.severity", 1)])
+        outcomes.create_index([("created_at", -1)])
+
+        rag_chunks = db["rag_knowledge_chunks"]
+        rag_chunks.create_index([("chunk_id", 1)], unique=True)
+        rag_chunks.create_index([("document_id", 1)])
+        rag_chunks.create_index([("tenant_id", 1)])
+        rag_chunks.create_index([("source_type", 1)])
+        rag_chunks.create_index([("metadata.category", 1)])
+        rag_chunks.create_index([("created_at", -1)])
     except Exception as e:
         logger.warning("Index initialization warning: %s", _safe_error_text(e))
 
@@ -203,6 +229,21 @@ def get_simulations_collection():
 def get_audit_events_collection():
     db = get_database()
     return db["audit_events"]
+
+
+def get_executions_collection():
+    db = get_database()
+    return db["execution_records"]
+
+
+def get_outcomes_collection():
+    db = get_database()
+    return db["outcome_records"]
+
+
+def get_rag_chunks_collection():
+    db = get_database()
+    return db["rag_knowledge_chunks"]
 
 
 def is_mongodb_live() -> bool:

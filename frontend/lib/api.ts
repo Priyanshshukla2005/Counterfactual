@@ -15,6 +15,13 @@ import type {
   SignupCredentials,
   SavedSimulation,
   AuditEvent,
+  ExecutionRecord,
+  ExecutionStatus,
+  ExecutionActionType,
+  RazorpayPublicConfig,
+  OutcomeRecord,
+  MonitoringOverviewResponse,
+  HistoricalFeedbackResponse,
 } from '@/types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
@@ -680,4 +687,595 @@ export async function getAuditTrail(token?: string): Promise<AuditEvent[]> {
 
   const data = await response.json()
   return data.audit_events || []
+}
+
+/* =========================================================
+   PHASE 6: RAZORPAY EXECUTION API
+========================================================= */
+
+export async function getRazorpayConfig(token?: string): Promise<RazorpayPublicConfig> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/execution/config`, {
+      headers,
+      cache: 'no-store',
+    })
+    if (response.ok) {
+      return await response.json()
+    }
+  } catch (err) {
+    console.warn('Failed to fetch Razorpay config:', err)
+  }
+
+  return {
+    configured: false,
+    mode: 'unconfigured',
+    key_id_masked: '',
+    sdk_available: true,
+    supported_actions: ['PAYMENT_LINK', 'REFUND', 'INVOICE'],
+  }
+}
+
+export async function stageExecutionRecommendation(
+  payload: {
+    actionType: ExecutionActionType
+    amount: number
+    currency?: string
+    simulationId?: string
+    recommendationId?: string
+    transactionId?: string
+    description?: string
+    paymentId?: string
+    customerName?: string
+    customerEmail?: string
+    metadata?: Record<string, any>
+  },
+  token?: string
+): Promise<{ success: boolean; execution: ExecutionRecord }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/recommend`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error || data.message || 'Failed to stage execution recommendation.')
+  }
+
+  return data
+}
+
+export async function approveExecution(
+  executionId: string,
+  token?: string
+): Promise<{ success: boolean; message: string; execution: ExecutionRecord }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/${encodeURIComponent(executionId)}/approve`, {
+    method: 'POST',
+    headers,
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error || data.message || 'Approval failed.')
+  }
+
+  return data
+}
+
+export async function rejectExecution(
+  executionId: string,
+  reason?: string,
+  token?: string
+): Promise<{ success: boolean; message: string; execution: ExecutionRecord }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/${encodeURIComponent(executionId)}/reject`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ reason: reason || 'Operator rejected' }),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.error || data.message || 'Rejection failed.')
+  }
+
+  return data
+}
+
+export async function executeApprovedAction(
+  executionId: string,
+  token?: string
+): Promise<{
+  success: boolean
+  executionId: string
+  status: ExecutionStatus
+  razorpayId?: string
+  shortUrl?: string
+  execution: ExecutionRecord
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/${encodeURIComponent(executionId)}/execute`, {
+    method: 'POST',
+    headers,
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.errorMessage || data.error || data.message || 'Execution failed with Razorpay.')
+  }
+
+  return data
+}
+
+export async function executeDirectPaymentLink(
+  payload: {
+    amount: number
+    currency?: string
+    description?: string
+    simulationId?: string
+    recommendationId?: string
+    customerName?: string
+    customerEmail?: string
+  },
+  token?: string
+): Promise<{
+  success: boolean
+  executionId: string
+  status: ExecutionStatus
+  razorpayId?: string
+  shortUrl?: string
+  execution: ExecutionRecord
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/payment-link`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.errorMessage || data.error || data.message || 'Payment Link creation failed.')
+  }
+
+  return data
+}
+
+export async function executeDirectRefund(
+  payload: {
+    paymentId: string
+    amount: number
+    simulationId?: string
+    recommendationId?: string
+    notes?: Record<string, any>
+  },
+  token?: string
+): Promise<{
+  success: boolean
+  executionId: string
+  status: ExecutionStatus
+  refundId?: string
+  paymentId: string
+  amount: number
+  execution: ExecutionRecord
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/refund`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.errorMessage || data.error || data.message || 'Refund dispatch failed.')
+  }
+
+  return data
+}
+
+export async function executeDirectInvoice(
+  payload: {
+    customerName: string
+    customerEmail: string
+    amount: number
+    currency?: string
+    customerContact?: string
+    description?: string
+    simulationId?: string
+    recommendationId?: string
+    lineItems?: Array<{ name: string; amount: number; currency?: string; quantity?: number }>
+  },
+  token?: string
+): Promise<{
+  success: boolean
+  executionId: string
+  status: ExecutionStatus
+  invoiceId?: string
+  amount: number
+  currency: string
+  actionType: string
+  invoiceUrl?: string
+  message?: string
+  execution?: ExecutionRecord
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/execution/invoice`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.errorMessage || data.error || data.message || 'Invoice creation failed.')
+  }
+
+  return data
+}
+
+export async function getExecutionHistory(
+  filter?: { status?: string; actionType?: string },
+  token?: string
+): Promise<ExecutionRecord[]> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const queryParams = new URLSearchParams()
+  if (filter?.status && filter.status !== 'ALL') queryParams.append('status', filter.status)
+  if (filter?.actionType && filter.actionType !== 'ALL') queryParams.append('action_type', filter.actionType)
+
+  const url = `${API_BASE_URL}/api/execution/history${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+
+  const response = await fetch(url, {
+    headers,
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve execution history.')
+  }
+
+  const data = await response.json()
+  return data.executions || []
+}
+
+// ====================================================================
+// PHASE 7: CLOSED-LOOP MONITORING & OUTCOME TRACKING APIS
+// ====================================================================
+
+export async function getMonitoringOverview(token?: string): Promise<MonitoringOverviewResponse> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/monitoring/overview`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve closed-loop monitoring telemetry.')
+  }
+
+  return response.json()
+}
+
+export async function getMonitoringOutcomes(
+  filter?: {
+    severity?: string
+    actionType?: string
+    transactionId?: string
+    limit?: number
+    skip?: number
+  },
+  token?: string
+): Promise<{ outcomes: OutcomeRecord[]; total: number; limit: number; skip: number }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const queryParams = new URLSearchParams()
+  if (filter?.severity && filter.severity !== 'ALL') queryParams.append('severity', filter.severity)
+  if (filter?.actionType && filter.actionType !== 'ALL') queryParams.append('action_type', filter.actionType)
+  if (filter?.transactionId) queryParams.append('transaction_id', filter.transactionId)
+  if (filter?.limit) queryParams.append('limit', String(filter.limit))
+  if (filter?.skip) queryParams.append('skip', String(filter.skip))
+
+  const url = `${API_BASE_URL}/api/monitoring/outcomes${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+  const response = await fetch(url, { headers, cache: 'no-store' })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve outcome records.')
+  }
+
+  return response.json()
+}
+
+export async function getMonitoringDeviations(token?: string): Promise<{ deviations: OutcomeRecord[]; count: number }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/monitoring/deviations`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve financial deviations.')
+  }
+
+  return response.json()
+}
+
+export async function getHistoricalFeedback(token?: string): Promise<HistoricalFeedbackResponse> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/monitoring/feedback`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve historical feedback insights.')
+  }
+
+  return response.json()
+}
+
+export async function recordActualOutcome(
+  payload: {
+    transactionId: string
+    predictedAmount: number
+    actualAmount: number
+    simulationId?: string
+    executionId?: string
+    actionType?: string
+    status?: string
+    metadata?: Record<string, any>
+  },
+  token?: string
+): Promise<{ success: boolean; message: string; outcome: OutcomeRecord }> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/monitoring/outcomes/record`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.errorMessage || data.error || data.message || 'Failed to record actual outcome.')
+  }
+
+  return data
+}
+
+export async function getDemoScenario(token?: string): Promise<{
+  story: {
+    hook_title: string
+    hook_subhead: string
+    merchant_request: string
+    scenario_name: string
+    transaction_id: string
+    gross_amount: number
+  }
+  simulation: any
+  stages: Array<{
+    stage_number: number
+    id: string
+    name: string
+    title: string
+    description: string
+    data: any
+  }>
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo/scenario`, {
+    headers,
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve demo scenario data.')
+  }
+
+  return response.json()
+}
+
+export async function initializeDemo(token?: string): Promise<{
+  success: boolean
+  message: string
+  demo_ids: Record<string, string>
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo/initialize`, {
+    method: 'POST',
+    headers,
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to initialize demo.')
+  }
+
+  return data
+}
+
+export async function resetDemo(token?: string): Promise<{
+  success: boolean
+  message: string
+  cleaned_records: Record<string, number>
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo/reset`, {
+    method: 'POST',
+    headers,
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to reset demo state.')
+  }
+
+  return data
+}
+
+// ====================================================================
+// PHASE 11: RAG API CLIENT METHODS
+// ====================================================================
+
+export async function searchRAGKnowledge(
+  payload: {
+    query: string
+    sourceType?: string
+    topK?: number
+    transactionId?: string
+    exceptionType?: string
+  },
+  token?: string
+): Promise<any> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/rag/search`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error('Unable to search RAG knowledge.')
+  }
+
+  return response.json()
+}
+
+export async function getGroundedRAGExplanation(
+  payload: {
+    transactionId: string
+    predictedAmount: number
+    actualAmount: number
+    exceptionType?: string
+    query?: string
+  },
+  token?: string
+): Promise<any> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/rag/explain`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to generate RAG explanation.')
+  }
+
+  return data
+}
+
+export async function getRAGSource(chunkId: string, token?: string): Promise<any> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/rag/sources/${encodeURIComponent(chunkId)}`, {
+    headers,
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to load source document.')
+  }
+
+  return data
 }

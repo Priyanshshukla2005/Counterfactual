@@ -13,6 +13,7 @@ import {
   Building2,
   X,
   Cpu,
+  Compass,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -21,6 +22,7 @@ interface SidebarProps {
   totalExceptions: number
   mobileOpen?: boolean
   onCloseMobile?: () => void
+  onOpenDemo?: () => void
 }
 
 export function Sidebar({
@@ -29,6 +31,7 @@ export function Sidebar({
   totalExceptions,
   mobileOpen,
   onCloseMobile,
+  onOpenDemo,
 }: SidebarProps) {
   const { user } = useAuth()
   const userInitials = getInitials(user?.name)
@@ -178,6 +181,20 @@ export function Sidebar({
                 3D STUDIO
               </span>
             </button>
+
+            <button
+              className={`nav-item cursor-pointer ${active === 'Monitoring' ? 'active' : ''}`}
+              onClick={() => handleNavClick('Monitoring')}
+              title="Jump to Closed-Loop Monitoring & Performance Tracking"
+            >
+              <div className="flex items-center gap-2.5">
+                <Compass size={16} className="nav-icon text-emerald-400" />
+                <span>Monitoring</span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded shadow-2xs">
+                CLOSED-LOOP
+              </span>
+            </button>
           </div>
 
           {/* Group 3: Executive Audit */}
@@ -197,6 +214,26 @@ export function Sidebar({
               )}
             </button>
           </div>
+
+          {/* Group 4: Interactive Demo Mode */}
+          {onOpenDemo && (
+            <div>
+              <div className="nav-group-label">Fintech Intelligence Demo</div>
+              <button
+                className="w-full flex items-center justify-between p-2.5 bg-gradient-to-r from-indigo-950/60 to-slate-900 border border-indigo-500/40 hover:border-indigo-400 text-indigo-200 hover:text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-950/40 transition group cursor-pointer"
+                onClick={onOpenDemo}
+                title="Launch Interactive 8-Stage Story Demo"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-indigo-400 group-hover:scale-110 transition animate-pulse" />
+                  <span>Interactive Demo</span>
+                </div>
+                <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 border border-indigo-500/40">
+                  8-STAGE
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

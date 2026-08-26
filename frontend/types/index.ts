@@ -1,6 +1,6 @@
 export type TransactionStatus = 'Reconciled' | 'Exception' | 'Review'
 export type RiskLevel = 'Low' | 'Medium' | 'High'
-export type NavSection = 'Overview' | 'Transactions' | 'Exceptions' | 'Counterfactuals' | 'Reports'
+export type NavSection = 'Overview' | 'Transactions' | 'Exceptions' | 'Counterfactuals' | 'Reports' | 'Monitoring'
 
 export interface User {
   id: string
@@ -248,4 +248,247 @@ export interface TransactionFilters {
   risk: 'ALL' | 'High' | 'Medium' | 'Low'
   exceptionType: 'ALL' | string
   rail: 'ALL' | string
+}
+
+// Phase 6: Razorpay Execution Types
+export type ExecutionStatus =
+  | 'RECOMMENDED'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTING'
+  | 'EXECUTED'
+  | 'FAILED'
+  | 'REJECTED'
+
+export type ExecutionActionType = 'PAYMENT_LINK' | 'REFUND' | 'INVOICE'
+
+export interface RazorpayPublicConfig {
+  configured: boolean
+  mode: string
+  key_id_masked: string
+  sdk_available: boolean
+  supported_actions: string[]
+}
+
+export interface ExecutionRecord {
+  id: string
+  execution_id: string
+  user_id: string
+  tenant_id: string
+  simulation_id?: string
+  recommendation_id?: string
+  target_transaction_id?: string
+  action_type: ExecutionActionType
+  amount: number
+  currency: string
+  status: ExecutionStatus
+  description: string
+  idempotency_key?: string
+  requested_at: string
+  approved_at?: string | null
+  approved_by?: string | null
+  executed_at?: string | null
+  rejected_at?: string | null
+  rejection_reason?: string | null
+  razorpay_id?: string | null
+  razorpay_reference?: string | null
+  short_url?: string | null
+  error_code?: string | null
+  error_message?: string | null
+  metadata?: Record<string, any>
+}
+
+export interface ExecutionFilterOptions {
+  status: 'ALL' | ExecutionStatus
+  actionType: 'ALL' | ExecutionActionType
+}
+
+// Phase 7: Closed-Loop Monitoring & Outcome Types
+export type DeviationSeverity =
+  | 'ON_TARGET'
+  | 'MINOR_DEVIATION'
+  | 'SIGNIFICANT_DEVIATION'
+  | 'CRITICAL_DEVIATION'
+  | 'INSUFFICIENT_DATA'
+
+export interface OutcomePrediction {
+  predicted_amount: number
+  predicted_settlement: number
+  predicted_revenue: number
+  predicted_refund: number
+  recommended_action: string
+  predicted_at: string
+}
+
+export interface OutcomeActual {
+  actual_amount: number
+  actual_settlement: number
+  actual_revenue: number
+  actual_refund: number
+  observed_status: string
+  observed_at: string
+  source: string
+}
+
+export interface OutcomeComparison {
+  predicted: number
+  actual: number
+  deviation_amount: number
+  absolute_deviation: number
+  deviation_percentage: number
+  direction: 'EXACT' | 'UNDERPERFORMED' | 'OVERPERFORMED'
+  severity: DeviationSeverity
+  status: string
+  accuracy_score: number
+}
+
+export interface OutcomeRootCause {
+  likely_cause: string
+  confidence: number
+  evidence: string
+  explanation: string
+  recommended_investigation: string
+}
+
+export interface OutcomeRecord {
+  id: string
+  outcome_id: string
+  tenant_id: string
+  user_id: string
+  simulation_id?: string
+  recommendation_id?: string
+  execution_id?: string
+  transaction_id: string
+  razorpay_id?: string
+  action_type: string
+  prediction: OutcomePrediction
+  actual: OutcomeActual
+  comparison: OutcomeComparison
+  root_cause: OutcomeRootCause
+  created_at: string
+  updated_at?: string
+  metadata?: Record<string, any>
+}
+
+export interface MonitoringOverviewMetrics {
+  total_predictions: number
+  total_executions: number
+  successful_executions: number
+  failed_executions: number
+  total_executed_amount: number
+  total_refunds: number
+  total_invoices: number
+  total_payment_links: number
+  prediction_accuracy_rate: number
+  average_deviation_pct: number
+  median_deviation_pct: number
+  critical_deviations_count: number
+}
+
+export interface SeverityDistribution {
+  on_target: number
+  on_target_pct: number
+  minor: number
+  minor_pct: number
+  significant: number
+  significant_pct: number
+  critical: number
+  critical_pct: number
+}
+
+export interface MonitoringOverviewResponse {
+  metrics: MonitoringOverviewMetrics
+  severity_distribution: SeverityDistribution
+  critical_alerts: OutcomeRecord[]
+  thresholds: Record<string, number>
+}
+
+export interface HistoricalPattern {
+  cause: string
+  occurrences: number
+  percentage: number
+  insight: string
+}
+
+export interface HistoricalFeedbackResponse {
+  historical_feedback: {
+    total_analyzed_cycles: number
+    recurring_patterns: HistoricalPattern[]
+    action_performance: {
+      payment_link_success_rate: number
+      refund_settlement_rate: number
+      invoice_payment_rate: number
+      average_reconciliation_variance_pct: number
+    }
+    decision_intelligence_guidance: string
+  }
+}
+
+// ====================================================================
+// PHASE 11: RAG FINANCIAL INTELLIGENCE LAYER TYPES
+// ====================================================================
+
+export interface RAGSourceCitation {
+  chunk_id: string
+  document_id: string
+  title: string
+  source_type: string
+  relevance_score: number
+  snippet: string
+}
+
+export interface RAGHistoricalCase {
+  outcome_id: string
+  transaction_id: string
+  action_type: string
+  predicted: number
+  actual: number
+  likely_cause: string
+  deviation_pct: number
+}
+
+export interface RAGNumericalSourceOfTruth {
+  predicted_amount: number
+  actual_amount: number
+  deviation_amount: number
+  deviation_pct: number
+  accuracy_score: number
+}
+
+export interface RAGExplanation {
+  transaction_id: string
+  is_grounded: boolean
+  confidence: 'High' | 'Medium' | 'Low'
+  likely_cause: string
+  grounded_explanation: string
+  retrieved_evidence: RAGSourceCitation[]
+  historical_similar_cases: RAGHistoricalCase[]
+  relevant_policies: string[]
+  recommended_investigation: string
+  numerical_source_of_truth: RAGNumericalSourceOfTruth
+}
+
+export interface RAGExplanationResponse {
+  success: boolean
+  explanation: RAGExplanation
+}
+
+export interface RAGSearchResult {
+  chunk_id: string
+  document_id: string
+  source_type: string
+  title: string
+  chunk_text: string
+  metadata: Record<string, any>
+  relevance_score: number
+  vector_similarity: number
+  tenant_id: string
+}
+
+export interface RAGSearchResponse {
+  success: boolean
+  enabled: boolean
+  query: string
+  results: RAGSearchResult[]
+  total_found: number
 }

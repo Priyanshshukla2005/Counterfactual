@@ -20,6 +20,7 @@ interface TopHeaderProps {
   onSync: () => void
   isSyncing?: boolean
   onOpenMobile?: () => void
+  onOpenDemo?: () => void
 }
 
 export function TopHeader({
@@ -29,6 +30,7 @@ export function TopHeader({
   onSync,
   isSyncing,
   onOpenMobile,
+  onOpenDemo,
 }: TopHeaderProps) {
   const getSearchPlaceholder = () => {
     switch (active) {
@@ -69,6 +71,18 @@ export function TopHeader({
       </div>
 
       <div className="topbar-actions">
+        {/* Live Demo Experience Launcher */}
+        {onOpenDemo && (
+          <button
+            onClick={onOpenDemo}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 transition transform hover:scale-[1.02]"
+            title="Launch Interactive 8-Stage Demo Studio"
+          >
+            <Sparkles size={13} className="animate-pulse" />
+            <span>LIVE DEMO</span>
+          </button>
+        )}
+
         {/* Real-time Status Badge */}
         <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-950/80 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 shadow-2xs">
           <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
