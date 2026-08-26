@@ -212,6 +212,13 @@ def _init_db_indexes(db):
         rag_chunks.create_index([("source_type", 1)])
         rag_chunks.create_index([("metadata.category", 1)])
         rag_chunks.create_index([("created_at", -1)])
+
+        imported_txns = db["tenant_imported_transactions"]
+        imported_txns.create_index([("transaction_id", 1), ("user_id", 1)], unique=True)
+        imported_txns.create_index([("user_id", 1)])
+        imported_txns.create_index([("tenant_id", 1)])
+        imported_txns.create_index([("status", 1)])
+        imported_txns.create_index([("imported_at", -1)])
     except Exception as e:
         logger.warning("Index initialization warning: %s", _safe_error_text(e))
 

@@ -57,7 +57,7 @@ export function RAGEvidenceCard({ explanation, className = '' }: RAGEvidenceCard
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                RAG-GROUNDED ANALYSIS // ZERO HALLUCINATION
+                Supporting Information & Analysis
               </span>
               <h4 className="text-sm font-bold text-white">
                 {explanation.likely_cause.replace(/_/g, ' ')}
@@ -84,19 +84,19 @@ export function RAGEvidenceCard({ explanation, className = '' }: RAGEvidenceCard
         {numTruth && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
             <div className="p-2.5 bg-slate-900/90 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 uppercase">Predicted Amount</span>
+              <span className="text-[10px] text-slate-500 uppercase">Estimated Money</span>
               <div className="font-mono font-bold text-slate-200">
                 ₹{numTruth.predicted_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
             <div className="p-2.5 bg-slate-900/90 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 uppercase">Actual Amount</span>
+              <span className="text-[10px] text-slate-500 uppercase">Actual Money Received</span>
               <div className="font-mono font-bold text-slate-200">
                 ₹{numTruth.actual_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
             <div className="p-2.5 bg-slate-900/90 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 uppercase">Delta Variance</span>
+              <span className="text-[10px] text-slate-500 uppercase">Difference</span>
               <div
                 className={`font-mono font-bold ${
                   numTruth.deviation_amount === 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -106,7 +106,7 @@ export function RAGEvidenceCard({ explanation, className = '' }: RAGEvidenceCard
               </div>
             </div>
             <div className="p-2.5 bg-slate-900/90 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 uppercase">Accuracy Score</span>
+              <span className="text-[10px] text-slate-500 uppercase">Accuracy Rating</span>
               <div className="font-mono font-bold text-emerald-400">
                 {numTruth.accuracy_score}%
               </div>
@@ -117,7 +117,7 @@ export function RAGEvidenceCard({ explanation, className = '' }: RAGEvidenceCard
         {/* Narrative */}
         <div className="space-y-2 text-xs">
           <div className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-            Synthesized Evidence Narrative:
+            Why This Happened & What We Found:
           </div>
           <p className="text-slate-200 leading-relaxed bg-slate-900/60 p-3.5 rounded-lg border border-slate-800/60">
             {explanation.grounded_explanation}
@@ -129,7 +129,7 @@ export function RAGEvidenceCard({ explanation, className = '' }: RAGEvidenceCard
           <div className="space-y-2 pt-2">
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               <BookOpen size={13} className="text-indigo-400" />
-              <span>Supporting Knowledge Sources ({explanation.retrieved_evidence.length})</span>
+              <span>Supporting Information ({explanation.retrieved_evidence.length})</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

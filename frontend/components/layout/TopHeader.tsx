@@ -21,6 +21,7 @@ interface TopHeaderProps {
   isSyncing?: boolean
   onOpenMobile?: () => void
   onOpenDemo?: () => void
+  onOpenImport?: () => void
 }
 
 export function TopHeader({
@@ -31,19 +32,20 @@ export function TopHeader({
   isSyncing,
   onOpenMobile,
   onOpenDemo,
+  onOpenImport,
 }: TopHeaderProps) {
   const getSearchPlaceholder = () => {
     switch (active) {
       case 'Transactions':
-        return 'Search ledger by Transaction ID, Order, Rail, Customer...'
+        return 'Search payments by ID, Order, Method, Customer...'
       case 'Exceptions':
-        return 'Filter open exception records by exposure, type, status...'
+        return 'Search payments that need attention...'
       case 'Counterfactuals':
-        return 'Search simulation targets by transaction ID or rail...'
+        return 'Search what-if scenarios by ID or payment method...'
       case 'Reports':
-        return 'Filter executive audit analytics...'
+        return 'Filter reports and payment reviews...'
       default:
-        return 'Quick search ledger records, counterparties, or exceptions...'
+        return 'Search your payments, customers, or problems...'
     }
   }
 
@@ -71,12 +73,24 @@ export function TopHeader({
       </div>
 
       <div className="topbar-actions">
+        {/* CSV Payment Importer */}
+        {onOpenImport && (
+          <button
+            onClick={onOpenImport}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-bold transition cursor-pointer"
+            title="Import custom merchant payment records (CSV)"
+          >
+            <Database size={13} className="text-indigo-400" />
+            <span className="hidden sm:inline">Import Payments</span>
+          </button>
+        )}
+
         {/* Live Demo Experience Launcher */}
         {onOpenDemo && (
           <button
             onClick={onOpenDemo}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 transition transform hover:scale-[1.02]"
-            title="Launch Interactive 8-Stage Demo Studio"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 transition transform hover:scale-[1.02] cursor-pointer"
+            title="Launch Interactive 8-Stage Story Demo"
           >
             <Sparkles size={13} className="animate-pulse" />
             <span>LIVE DEMO</span>
@@ -84,10 +98,9 @@ export function TopHeader({
         )}
 
         {/* Real-time Status Badge */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-950/80 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 shadow-2xs">
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-emerald-950/80 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 shadow-2xs">
           <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
-          <Cpu size={13} className="text-emerald-400" />
-          <span>ENGINE ACTIVE</span>
+          <span>PAYMENT CHECK ACTIVE</span>
         </div>
 
         {/* Sync Trigger */}
@@ -95,17 +108,17 @@ export function TopHeader({
           onClick={onSync}
           disabled={isSyncing}
           className="btn btn-secondary btn-sm"
-          title="Re-run reconciliation engine on latest settlement feed"
+          title="Re-check payments and calculate differences"
         >
           <RefreshCw size={13} className={isSyncing ? 'spin text-indigo-400' : 'text-slate-400'} />
-          <span className="hidden sm:inline">{isSyncing ? 'Reconciling...' : 'Sync Engine'}</span>
+          <span className="hidden sm:inline">{isSyncing ? 'Checking...' : 'Check Payments'}</span>
         </button>
 
         {/* Notifications */}
         <button
           className="btn-icon relative"
-          aria-label="System alerts & notifications"
-          title="System notifications"
+          aria-label="Alerts & problems"
+          title="Payment alerts"
         >
           <Bell size={15} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-slate-900" />

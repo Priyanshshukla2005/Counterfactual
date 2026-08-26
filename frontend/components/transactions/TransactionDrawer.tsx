@@ -59,7 +59,7 @@ export function TransactionDrawer({
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Transaction Audit & Reconciliation
+                Payment Details & Review
               </span>
               <RiskBadge risk={severity} />
             </div>
@@ -78,14 +78,14 @@ export function TransactionDrawer({
                 {transaction.id}
                 <button
                   onClick={() => copyToClipboard(transaction.id)}
-                  title="Copy Transaction ID"
+                  title="Copy Payment ID"
                   className="text-slate-400 hover:text-slate-700"
                 >
                   <Copy size={13} />
                 </button>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                {transaction.orderId ? `Order Ref: ${transaction.orderId}` : 'Settlement Reference'} • Rail: {transaction.rail}
+                {transaction.orderId ? `Order: ${transaction.orderId}` : 'Payment Reference'} • Method: {transaction.rail}
               </p>
             </div>
 
@@ -94,38 +94,47 @@ export function TransactionDrawer({
         </div>
 
         {/* Drawer Body */}
-        <div className="drawer-body">
+        <div className="drawer-body space-y-4">
           {/* Hero Exposure Box */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>Verified Ledger Variance</span>
+              <span className="font-bold text-slate-700">
+                {isException ? "Payment Doesn't Match" : 'Payment Reconciled'}
+              </span>
               <span className="font-semibold text-slate-700">{transaction.date}</span>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                {formatCurrency(variance)}
-              </span>
-              <span
-                className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                  isException
-                    ? 'text-rose-700 bg-rose-100 border border-rose-200'
-                    : 'text-emerald-700 bg-emerald-100 border border-emerald-200'
-                }`}
-              >
-                {isException ? 'Exposure At-Risk' : 'Zero Variance'}
-              </span>
+            
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-200 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">Expected Money</span>
+                <strong className="text-slate-900 font-mono text-sm">
+                  {formatCurrency(transaction.expectedAmount)}
+                </strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">Received</span>
+                <strong className="text-slate-900 font-mono text-sm">
+                  {formatCurrency(transaction.actualAmount)}
+                </strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase block">Difference</span>
+                <strong className={`font-mono text-sm ${variance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {formatCurrency(variance)}
+                </strong>
+              </div>
             </div>
           </div>
 
           {/* Multi-event Settlement Breakdown for Duplicates */}
           {settlementEvents.length > 1 && (
-            <div className="p-3.5 bg-amber-50/70 border border-amber-300 rounded-lg space-y-2 text-xs">
+            <div className="p-3.5 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 text-xs">
               <div className="flex items-center gap-2 text-amber-900 font-bold">
                 <AlertTriangle size={14} className="text-amber-700" />
-                <span>Multiple Settlement Disbursements Detected ({settlementEvents.length} Events)</span>
+                <span>Multiple Payments Received for One Order ({settlementEvents.length} Payments)</span>
               </div>
               <p className="text-amber-800 text-[11px]">
-                The gateway batch journal recorded repeated settlement credits for this single transaction reference.
+                Your payment provider recorded repeated deposits for this single order reference.
               </p>
 
               <div className="divide-y divide-amber-200/80 bg-white/80 rounded-md border border-amber-200 text-xs">
@@ -146,7 +155,7 @@ export function TransactionDrawer({
                           i > 0 ? 'text-amber-700' : 'text-slate-600'
                         }`}
                       >
-                        {i > 0 ? 'Duplicate Credit' : 'Initial Credit'}
+                        {i > 0 ? 'Extra Payment' : 'First Payment'}
                       </span>
                     </div>
                   </div>
@@ -155,97 +164,62 @@ export function TransactionDrawer({
             </div>
           )}
 
-          {/* Visual Reconciliation Flow */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Reconciliation Path
-            </h3>
-
-            <div className="recon-flow">
-              <div className="recon-node">
-                <div className="recon-node-label">Expected Settlement</div>
-                <div className="recon-node-value tabular-nums">
-                  {formatCurrency(transaction.expectedAmount)}
-                </div>
+          {/* Why is there a difference? */}
+          {isException && (
+            <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2 text-xs">
+              <div className="flex items-center gap-2 text-amber-900 font-bold">
+                <AlertTriangle size={15} />
+                <span>Why is there a difference?</span>
               </div>
-
-              <div className="text-slate-400">
-                <ArrowRight size={16} />
-              </div>
-
-              <div
-                className={`recon-node ${
-                  variance > 0 ? 'border-rose-300 bg-rose-50/50' : ''
-                }`}
-              >
-                <div className="recon-node-label">Actual Total Settlement</div>
-                <div
-                  className={`recon-node-value tabular-nums ${
-                    variance > 0 ? 'text-rose-700' : 'text-slate-900'
-                  }`}
-                >
-                  {formatCurrency(transaction.actualAmount)}
-                </div>
-              </div>
+              <p className="text-slate-800 leading-relaxed">
+                {readableException(transaction.exceptionType)}: We detected a difference of{' '}
+                <strong className="font-mono">{formatCurrency(variance)}</strong> between what was expected
+                and what your payment provider sent.
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Financial Breakdown Table */}
           <div className="space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Ledger Accounting Details
+              Payment Calculation Details
             </h3>
 
-            <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100 text-xs">
+            <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 text-xs">
               <div className="p-2.5 flex justify-between">
-                <span className="text-slate-500">Gross Transaction Value:</span>
-                <strong className="text-slate-900 tabular-nums">
+                <span className="text-slate-500">Gross Transaction Amount:</span>
+                <strong className="text-slate-900 tabular-nums font-mono">
                   {formatCurrency(transaction.grossAmount || transaction.actualAmount)}
                 </strong>
               </div>
 
               <div className="p-2.5 flex justify-between">
-                <span className="text-slate-500">Interchange Fee:</span>
-                <span className="text-slate-700 tabular-nums">
+                <span className="text-slate-500">Payment Processing Fee:</span>
+                <span className="text-slate-700 tabular-nums font-mono">
                   {formatCurrency(transaction.fee ?? 0)}
                 </span>
               </div>
 
               <div className="p-2.5 flex justify-between">
-                <span className="text-slate-500">Applicable GST / Tax:</span>
-                <span className="text-slate-700 tabular-nums">
+                <span className="text-slate-500">Tax on Fee (18% GST):</span>
+                <span className="text-slate-700 tabular-nums font-mono">
                   {formatCurrency(transaction.tax ?? 0)}
                 </span>
               </div>
 
               <div className="p-2.5 flex justify-between">
                 <span className="text-slate-500">Refund Amount Deducted:</span>
-                <span className="text-slate-700 tabular-nums">
+                <span className="text-slate-700 tabular-nums font-mono">
                   {formatCurrency(transaction.refundAmount ?? 0)}
                 </span>
               </div>
 
-              <div className="p-2.5 flex justify-between bg-slate-50 font-semibold">
-                <span className="text-slate-700">Settlement Status:</span>
+              <div className="p-2.5 flex justify-between bg-slate-50 font-semibold rounded-b-xl">
+                <span className="text-slate-700">Payment Status:</span>
                 <SettlementStatusBadge status={transaction.settlementStatus || 'settled'} />
               </div>
             </div>
           </div>
-
-          {/* Root Cause & Diagnostic Findings */}
-          {isException && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2 text-xs">
-              <div className="flex items-center gap-2 text-amber-800 font-bold">
-                <AlertTriangle size={15} />
-                <span>Deterministic Finding: {readableException(transaction.exceptionType)}</span>
-              </div>
-              <p className="text-amber-900 leading-relaxed">
-                The settlement reconciliation engine detected an imbalance of{' '}
-                <strong>{formatCurrency(variance)}</strong> between the expected merchant receivable
-                and total recorded processor settlements.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Drawer Footer */}
@@ -255,10 +229,10 @@ export function TransactionDrawer({
               onOpenCounterfactual(transaction.id)
               onClose()
             }}
-            className="btn btn-primary flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600"
+            className="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
           >
             <Sparkles size={15} />
-            <span>Counterfactual Studio & Execution</span>
+            <span>Run What-If Analysis</span>
           </button>
 
           <button onClick={onClose} className="btn btn-secondary">

@@ -33,7 +33,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                1. Baseline Commercial State
+                1. Current Plan
               </h4>
             </div>
             <span className="fintech-badge bg-slate-100 text-slate-700 font-semibold">
@@ -45,7 +45,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
             <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
               <Landmark size={13} className="text-slate-400" />
-              <span>Merchant Settlement Payout</span>
+              <span>Money You Receive</span>
             </div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums">
               {formatCurrency(current_state.merchant_settlement)}
@@ -55,26 +55,26 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
           {/* Accounting Breakdown */}
           <div className="space-y-2 text-xs divide-y divide-slate-100">
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Gross Order Volume:</span>
+              <span>Gross Sales Volume:</span>
               <strong className="text-slate-900 tabular-nums">{formatCurrency(gross_amount)}</strong>
             </div>
 
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Commercial Discount ({current_state.discount_pct.toFixed(1)}%):</span>
+              <span>Customer Discount ({current_state.discount_pct.toFixed(1)}%):</span>
               <span className="text-rose-600 tabular-nums">
                 -{formatCurrency(current_state.discount_amount)}
               </span>
             </div>
 
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Gateway Fees & GST:</span>
+              <span>Payment Processing Fee & Tax:</span>
               <span className="text-slate-700 tabular-nums">
                 -{formatCurrency(current_state.fee_amount + current_state.tax_amount)}
               </span>
             </div>
 
             <div className="flex justify-between py-1.5 pt-2 font-semibold text-slate-700 bg-slate-50/50 px-2 rounded">
-              <span>Platform Revenue Retained:</span>
+              <span>Platform Retained Margin:</span>
               <strong className="text-indigo-900 tabular-nums">
                 {formatCurrency(current_state.platform_revenue)}
               </strong>
@@ -88,7 +88,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-indigo-600" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-950">
-                2. Counterfactual Simulation
+                2. Proposed What-If Plan
               </h4>
             </div>
             <span className="fintech-badge bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
@@ -101,7 +101,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-indigo-900 flex items-center gap-1.5">
                 <Landmark size={13} className="text-indigo-600" />
-                <span>Simulated Merchant Payout</span>
+                <span>What-If Money You Receive</span>
               </span>
               <span
                 className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
@@ -123,7 +123,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
                     <span>{formatCurrency(deltas.merchant_delta)}</span>
                   </>
                 ) : (
-                  <span>Parity (₹0.00)</span>
+                  <span>No Change</span>
                 )}
               </span>
             </div>
@@ -135,26 +135,26 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
           {/* Accounting Breakdown */}
           <div className="space-y-2 text-xs divide-y divide-slate-100">
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Gross Order Volume:</span>
+              <span>Gross Sales Volume:</span>
               <strong className="text-slate-900 tabular-nums">{formatCurrency(gross_amount)}</strong>
             </div>
 
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Commercial Discount ({counterfactual_state.discount_pct.toFixed(1)}%):</span>
+              <span>Customer Discount ({counterfactual_state.discount_pct.toFixed(1)}%):</span>
               <span className="text-indigo-700 font-semibold tabular-nums">
                 -{formatCurrency(counterfactual_state.discount_amount)}
               </span>
             </div>
 
             <div className="flex justify-between py-1 text-slate-600">
-              <span>Gateway Fees & GST:</span>
+              <span>Payment Processing Fee & Tax:</span>
               <span className="text-slate-700 tabular-nums">
                 -{formatCurrency(counterfactual_state.fee_amount + counterfactual_state.tax_amount)}
               </span>
             </div>
 
             <div className="flex justify-between py-1.5 pt-2 font-semibold text-slate-700 bg-indigo-50/50 px-2 rounded">
-              <span>Platform Revenue Retained:</span>
+              <span>Platform Retained Margin:</span>
               <div className="flex items-center gap-1.5">
                 <strong className="text-indigo-950 tabular-nums">
                   {formatCurrency(counterfactual_state.platform_revenue)}
@@ -178,17 +178,19 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
           <div className="flex items-center gap-2">
             <Scale size={15} className="text-indigo-400" />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Net Financial Delta & Exposure
+              Net Impact on Your Money
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Shift in capital distribution between merchant payout and platform retained margin.
+            {deltas.merchant_delta < 0
+              ? `You will receive ${formatCurrency(Math.abs(deltas.merchant_delta))} less per ₹${formatCurrency(gross_amount)} in sales.`
+              : `You will gain ${formatCurrency(deltas.merchant_delta)} more per ₹${formatCurrency(gross_amount)} in sales.`}
           </p>
         </div>
 
         <div className="flex items-center gap-6 shrink-0">
           <div className="text-left sm:text-right">
-            <div className="text-[11px] text-slate-400">Merchant Payout Delta</div>
+            <div className="text-[11px] text-slate-400">Your Money Impact</div>
             <div
               className={`text-base font-bold tabular-nums ${
                 isMerchantGain ? 'text-emerald-400' : deltas.merchant_delta < 0 ? 'text-rose-400' : 'text-slate-300'
@@ -199,7 +201,7 @@ export function FinancialImpact({ simulation }: FinancialImpactProps) {
           </div>
 
           <div className="text-left sm:text-right">
-            <div className="text-[11px] text-slate-400">Platform Revenue Delta</div>
+            <div className="text-[11px] text-slate-400">Platform Revenue Impact</div>
             <div
               className={`text-base font-bold tabular-nums ${
                 isPlatformGain ? 'text-emerald-400' : deltas.platform_delta < 0 ? 'text-amber-400' : 'text-slate-300'

@@ -466,6 +466,107 @@ def get_audit_trail():
     }), 200
 
 
+# ====================================================================
+# PHASE 12: MERCHANT CSV PAYMENT INGESTION (TENANT ISOLATED)
+# ====================================================================
+
+@app.route("/api/import-csv", methods=["POST"])
+@require_auth
+def import_csv_payments():
+    """
+    POST /api/import-csv
+    Ingests validated merchant payment records.
+    Strictly binds all imported records to the authenticated tenant (g.user_id).
+    """
+    data = request.get_json(silent=True) or {}
+    records = data.get("records")
+
+    if not isinstance(records, list) or len(records) == 0:
+        return jsonify({"error": "Invalid Data", "message": "Payload must contain a non-empty 'records' list."}), 400
+
+    authenticated_user_id = g.user_id
+    now_iso = datetime.now(timezone.utc).isoformat()
+    valid_records = []
+    warnings = []
+
+    for idx, r in enumerate(records):
+        if not isinstance(r, dict):
+            warnings.append(f"Row {idx + 1}: Malformed record skipped.")
+            continue
+
+        raw_id = str(r.get("transaction_id") or r.get("id") or f"TXN_IMP_{uuid.uuid4().hex[:8].upper()}").strip()
+
+        try:
+            amount = float(r.get("amount", 0.0))
+            expected = float(r.get("expected_settlement", r.get("expected_amount", amount)))
+            actual = float(r.get("actual_settlement", r.get("actual_amount", expected)))
+            refund = float(r.get("refund_amount", 0.0))
+            fee = float(r.get("fee", 0.0))
+        except (ValueError, TypeError):
+            warnings.append(f"Row {idx + 1} ({raw_id}): Invalid numerical values skipped.")
+            continue
+
+        if amount < 0 or expected < 0 or actual < 0 or refund < 0 or fee < 0:
+            warnings.append(f"Row {idx + 1} ({raw_id}): Negative amounts are not permitted.")
+            continue
+
+        payment_method = str(r.get("payment_method") or r.get("rail") or "CARD").strip().upper()
+        date_str = str(r.get("date") or r.get("payment_date") or now_iso[:10]).strip()
+        diff = round(expected - actual, 2)
+        status = "Reconciled" if diff == 0 else "Exception"
+
+        valid_records.append({
+            "transaction_id": raw_id,
+            "user_id": authenticated_user_id,
+            "tenant_id": authenticated_user_id,
+            "amount": amount,
+            "expected_settlement": expected,
+            "actual_settlement": actual,
+            "difference": diff,
+            "refund_amount": refund,
+            "fee": fee,
+            "payment_method": payment_method,
+            "payment_date": date_str,
+            "status": status,
+            "imported_at": now_iso,
+        })
+
+    if not valid_records:
+        return jsonify({
+            "error": "Validation Failed",
+            "message": "No valid payment records found.",
+            "warnings": warnings
+        }), 400
+
+    # Persist records under tenant collection
+    try:
+        from database import get_database
+        db = get_database()
+        col = db["tenant_imported_transactions"]
+        for vr in valid_records:
+            col.update_one(
+                {"transaction_id": vr["transaction_id"], "user_id": authenticated_user_id},
+                {"$set": vr},
+                upsert=True
+            )
+    except Exception as e:
+        return jsonify({"error": "Persistence Failed", "message": str(e)}), 500
+
+    log_audit_event(
+        user_id=authenticated_user_id,
+        action="CSV_PAYMENTS_IMPORTED",
+        metadata={"imported_count": len(valid_records), "total_submitted": len(records)}
+    )
+
+    return jsonify({
+        "success": True,
+        "message": f"Successfully imported {len(valid_records)} payment records.",
+        "imported_count": len(valid_records),
+        "total_records": len(records),
+        "warnings": warnings
+    }), 201
+
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",

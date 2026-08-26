@@ -77,12 +77,12 @@ export function ExceptionBreakdown({
       <div className="card-panel-header">
         <div>
           <div className="flex items-center gap-2">
-            <span className="eyebrow">Risk Classification</span>
+            <span className="eyebrow">Payment Problems</span>
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
           </div>
-          <h2 className="card-panel-title text-base font-bold">Exception Intelligence</h2>
+          <h2 className="card-panel-title text-base font-bold">What&apos;s Going Wrong?</h2>
           <p className="card-panel-subtitle">
-            Discrepancy taxonomy across {totalExceptions} flagged entities
+            Overview of all {totalExceptions} payments that need your attention
           </p>
         </div>
       </div>
@@ -105,7 +105,7 @@ export function ExceptionBreakdown({
                 {totalExceptions}
               </span>
               <span className="text-[9px] uppercase font-bold text-slate-400 mt-1 tracking-wider">
-                Exceptions
+                Problems
               </span>
             </div>
           </div>
@@ -113,7 +113,7 @@ export function ExceptionBreakdown({
           <div className="space-y-2.5 flex-1 min-w-[140px] w-full sm:w-auto">
             <div className="p-3 bg-rose-950/40 border border-rose-800/40 rounded-xl">
               <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider block">
-                Total At-Risk Capital
+                Money at Risk
               </span>
               <strong className="text-base font-bold text-rose-400 tabular-nums">
                 {formatCurrency(totalAtRisk)}
@@ -122,7 +122,7 @@ export function ExceptionBreakdown({
 
             <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Dominant Root Cause
+                Most Common Problem
               </span>
               <strong className="text-xs font-semibold text-slate-200 truncate block mt-0.5">
                 {breakdown[0]?.label || 'None detected'}

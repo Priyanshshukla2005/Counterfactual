@@ -50,23 +50,23 @@ export function ScenarioControls({
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <Sliders size={16} className="text-indigo-600" />
-          <h3 className="font-bold text-slate-900 text-sm">Commercial Scenario Variables</h3>
+          <h3 className="font-bold text-slate-900 text-sm">What-If Settings</h3>
         </div>
 
         <button
           onClick={onReset}
           className="btn btn-secondary btn-sm text-xs py-1 px-2.5"
-          title="Reset variables to baseline"
+          title="Reset values to baseline"
         >
           <RotateCcw size={12} />
-          <span>Reset Baseline</span>
+          <span>Reset Values</span>
         </button>
       </div>
 
       {/* Scenario Presets Quick-Select */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-          Scenario Presets
+          Preset Scenarios
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {presets.map((preset) => {
@@ -89,16 +89,16 @@ export function ScenarioControls({
         </div>
       </div>
 
-      {/* Primary Variable 1: Commercial Discount Slider */}
+      {/* Primary Variable 1: Proposed Discount Slider */}
       <div className="space-y-2 p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
               <Percent size={13} className="text-indigo-600" />
-              Hypothetical Commercial Discount
+              Proposed Discount %
             </span>
             <span className="text-[11px] text-slate-500 block">
-              Baseline: {currentDiscountPct.toFixed(1)}%
+              Current discount: {currentDiscountPct.toFixed(1)}%
             </span>
           </div>
 
@@ -106,11 +106,11 @@ export function ScenarioControls({
             <input
               type="number"
               min="0"
-              max="15"
-              step="0.1"
+              max="100"
+              step="0.5"
               value={newDiscountPct}
               onChange={(e) => onDiscountChange(parseFloat(e.target.value) || 0)}
-              className="w-12 text-right font-bold text-indigo-900 text-sm outline-none"
+              className="w-14 text-right font-bold text-indigo-900 text-sm outline-none"
             />
             <span className="text-xs font-bold text-indigo-700">%</span>
           </div>
@@ -120,49 +120,49 @@ export function ScenarioControls({
         <input
           type="range"
           min="0"
-          max="15"
-          step="0.1"
+          max="50"
+          step="0.5"
           value={newDiscountPct}
           onChange={(e) => onDiscountChange(parseFloat(e.target.value))}
           className="w-full accent-indigo-600 cursor-pointer h-2 bg-indigo-200 rounded-lg"
         />
 
         <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-          <span>0.0% (Zero Fee)</span>
-          <span>5.0% (Baseline)</span>
-          <span>10.0%</span>
-          <span>15.0% (High Margin)</span>
+          <span>0% (No Discount)</span>
+          <span>5% (Current)</span>
+          <span>20% (Promo)</span>
+          <span>50% (Flash Sale)</span>
         </div>
       </div>
 
       {/* Secondary Controls Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Gateway Fee % */}
+        {/* Payment Processing Fee % */}
         <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-800">Gateway Fee Rate</span>
+            <span className="font-semibold text-slate-800">Payment Processing Fee</span>
             <strong className="text-slate-900 tabular-nums">{feePct.toFixed(1)}%</strong>
           </div>
           <input
             type="range"
-            min="0.5"
-            max="4.0"
+            min="0.0"
+            max="5.0"
             step="0.1"
             value={feePct}
             onChange={(e) => onFeeChange(parseFloat(e.target.value))}
             className="w-full accent-slate-700 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
           />
           <div className="flex justify-between text-[10px] text-slate-400">
-            <span>0.5% UPI</span>
-            <span>1.8% Card</span>
-            <span>4.0% International</span>
+            <span>0.0% Free UPI</span>
+            <span>1.8% Standard Card</span>
+            <span>3.5% International</span>
           </div>
         </div>
 
-        {/* Settlement Recovery */}
+        {/* Money Recovery */}
         <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-800">Settlement Recovery</span>
+            <span className="font-semibold text-slate-800">Money Recovery %</span>
             <strong className="text-emerald-700 tabular-nums">{settlementRecoveryPct}%</strong>
           </div>
           <input
@@ -177,21 +177,21 @@ export function ScenarioControls({
           <div className="flex justify-between text-[10px] text-slate-400">
             <span>50% Partial</span>
             <span>85% Reserve</span>
-            <span>100% Full</span>
+            <span>100% Full Payout</span>
           </div>
         </div>
       </div>
 
-      {/* Settlement Timing Option */}
+      {/* When will you receive your money? */}
       <div className="space-y-2">
         <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-          Settlement Velocity & Timing
+          When will you receive your money?
         </label>
         <div className="grid grid-cols-3 gap-2">
           {[
-            { days: 0, label: 'Instant T+0', desc: 'Real-time Net' },
-            { days: 1, label: 'Standard T+1', desc: 'Next Business Day' },
-            { days: 2, label: 'Batch T+2', desc: 'Extended Audit' },
+            { days: 0, label: 'Same Day', desc: 'Instant Payout' },
+            { days: 1, label: 'Next Business Day', desc: 'Standard Payout' },
+            { days: 2, label: 'Two Business Days Later', desc: 'Batch Payout' },
           ].map((t) => (
             <button
               key={t.days}

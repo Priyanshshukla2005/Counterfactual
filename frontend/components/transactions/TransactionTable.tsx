@@ -84,19 +84,19 @@ export function TransactionTable({
                 className="cursor-pointer hover:text-slate-900 select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Transaction / Reference</span>
+                  <span>PAYMENT</span>
                   <ArrowUpDown size={12} />
                 </div>
               </th>
 
-              <th>Payment Rail</th>
+              <th>PAYMENT METHOD</th>
 
               <th
                 onClick={() => handleSort('expectedAmount')}
                 className="cursor-pointer hover:text-slate-900 select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Expected Settlement</span>
+                  <span>EXPECTED</span>
                   <ArrowUpDown size={12} />
                 </div>
               </th>
@@ -106,7 +106,7 @@ export function TransactionTable({
                 className="cursor-pointer hover:text-slate-900 select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Actual Settlement</span>
+                  <span>RECEIVED</span>
                   <ArrowUpDown size={12} />
                 </div>
               </th>
@@ -116,15 +116,15 @@ export function TransactionTable({
                 className="cursor-pointer hover:text-slate-900 select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Variance Exposure</span>
+                  <span>DIFFERENCE</span>
                   <ArrowUpDown size={12} />
                 </div>
               </th>
 
-              <th>Exception Class</th>
-              <th>Risk Tier</th>
-              <th>Settlement Status</th>
-              <th className="text-right">Actions</th>
+              <th>PROBLEM</th>
+              <th>RISK LEVEL</th>
+              <th>STATUS</th>
+              <th className="text-right">ACTIONS</th>
             </tr>
           </thead>
 
@@ -183,7 +183,7 @@ export function TransactionTable({
                           {readableException(tx.exceptionType)}
                         </span>
                       ) : (
-                        <span className="text-emerald-700">None (Reconciled)</span>
+                        <span className="text-emerald-700">Matched</span>
                       )}
                     </div>
                   </td>
@@ -204,10 +204,11 @@ export function TransactionTable({
                             e.stopPropagation()
                             onSimulate(tx.id)
                           }}
-                          className="p-1 text-indigo-600 hover:bg-indigo-50 rounded-md transition"
-                          title="Simulate in Counterfactual Studio"
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-md transition text-xs font-bold flex items-center gap-1"
+                          title="Run What-If Analysis on this payment"
                         >
-                          <Sparkles size={15} />
+                          <Sparkles size={12} />
+                          <span>What-If</span>
                         </button>
                       )}
 
@@ -216,10 +217,10 @@ export function TransactionTable({
                           e.stopPropagation()
                           onSelect(tx)
                         }}
-                        className="p-1 text-slate-400 hover:text-slate-700 rounded-md transition"
-                        title="Investigate Transaction"
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition text-xs font-bold"
+                        title="View Details"
                       >
-                        <ExternalLink size={14} />
+                        <span>View</span>
                       </button>
                     </div>
                   </td>

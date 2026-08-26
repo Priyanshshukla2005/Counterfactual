@@ -52,6 +52,11 @@ import {
   ExternalLink,
   Lock,
   AlertTriangle,
+  Receipt,
+  HelpCircle,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 interface CounterfactualStudioProps {
@@ -62,11 +67,59 @@ interface CounterfactualStudioProps {
 }
 
 type StudioMode = 'COMMERCIAL_PRICING' | 'RAZORPAY_EXECUTION' | 'EXCEPTION_RESOLUTION' | 'SAVED_SCENARIOS'
+type EntryMode = 'EXISTING_PAYMENT' | 'HYPOTHETICAL_SCENARIO'
 type ResolutionScenario =
   | 'GATEWAY_RECOVERY'
   | 'MERCHANT_DEBIT'
   | 'REQUERY_WINDOW'
   | 'FEE_CORRECTION'
+
+const HYPOTHETICAL_PRESETS = [
+  {
+    name: 'Weekend 20% Flash Sale',
+    gross: 50000,
+    volume: 100,
+    currentDiscount: 5.0,
+    newDiscount: 20.0,
+    fee: 1.8,
+    recovery: 100,
+    timing: 1,
+    desc: 'Simulate a 20% promo discount on ₹50,000 sales across 100 orders.',
+  },
+  {
+    name: 'Tier-1 Volume Growth',
+    gross: 150000,
+    volume: 300,
+    currentDiscount: 5.0,
+    newDiscount: 10.0,
+    fee: 1.5,
+    recovery: 100,
+    timing: 0,
+    desc: 'Simulate high volume discount tier with instant settlement.',
+  },
+  {
+    name: 'Zero Fee UPI Promo',
+    gross: 25000,
+    volume: 50,
+    currentDiscount: 2.0,
+    newDiscount: 0.0,
+    fee: 0.0,
+    recovery: 100,
+    timing: 1,
+    desc: 'Zero discount promo on UPI payments with no processing fee.',
+  },
+  {
+    name: 'High-Margin Promo',
+    gross: 100000,
+    volume: 200,
+    currentDiscount: 10.0,
+    newDiscount: 30.0,
+    fee: 1.8,
+    recovery: 100,
+    timing: 1,
+    desc: 'Aggressive 30% discount to drive maximum order volume.',
+  },
+]
 
 export function CounterfactualStudio({
   exceptions,
@@ -74,6 +127,9 @@ export function CounterfactualStudio({
   onSelectTxId,
   onNavigateToTransactions,
 }: CounterfactualStudioProps) {
+  // Entry Mode: Existing Payment vs Hypothetical What-If
+  const [entryMode, setEntryMode] = useState<EntryMode>('HYPOTHETICAL_SCENARIO')
+
   // Current active transaction
   const currentException =
     exceptions.find((e) => e.transaction_id === selectedTxId) ||
@@ -84,17 +140,23 @@ export function CounterfactualStudio({
   const [studioMode, setStudioMode] = useState<StudioMode>('COMMERCIAL_PRICING')
 
   // Commercial Variable Inputs (Live Simulation State)
-  const grossBaseline = currentException
+  const [hypotheticalGross, setHypotheticalGross] = useState<number>(50000)
+  const [hypotheticalVolume, setHypotheticalVolume] = useState<number>(100)
+  const [showFormulaDetails, setShowFormulaDetails] = useState<boolean>(false)
+
+  const grossBaseline = entryMode === 'HYPOTHETICAL_SCENARIO'
+    ? hypotheticalGross
+    : currentException
     ? Number(currentException.expected_settlement || currentException.actual_settlement || 10000)
     : 10000
 
   const [grossAmount, setGrossAmount] = useState<number>(grossBaseline)
   const [currentDiscountPct, setCurrentDiscountPct] = useState<number>(5.0)
-  const [newDiscountPct, setNewDiscountPct] = useState<number>(3.0)
+  const [newDiscountPct, setNewDiscountPct] = useState<number>(20.0)
   const [feePct, setFeePct] = useState<number>(1.8)
   const [taxPct, setTaxPct] = useState<number>(18.0)
   const [refundAmount, setRefundAmount] = useState<number>(
-    currentException ? Number(currentException.refund_amount || 0) : 0
+    entryMode === 'HYPOTHETICAL_SCENARIO' ? 0 : currentException ? Number(currentException.refund_amount || 0) : 0
   )
   const [settlementRecoveryPct, setSettlementRecoveryPct] = useState<number>(100)
   const [settlementTimingDays, setSettlementTimingDays] = useState<number>(1)
@@ -482,12 +544,12 @@ export function CounterfactualStudio({
           <div className="flex items-center gap-2">
             <span className="eyebrow">Decision Intelligence</span>
             <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 border border-indigo-500/40 px-2 py-0.5 rounded shadow-2xs">
-              Phase 5 Production Verified
+              Simulation Engine
             </span>
           </div>
-          <h1 className="page-title">Counterfactual Financial Simulation Engine</h1>
+          <h1 className="page-title">What-If Simulator</h1>
           <p className="page-subhead">
-            Model the financial consequences of commercial pricing, discount adjustments, and treasury resolution strategies before executing decisions.
+            See what will happen to your money before you make pricing, discount, or payment decisions.
           </p>
         </div>
 
@@ -502,7 +564,7 @@ export function CounterfactualStudio({
             }`}
           >
             <Sparkles size={13} className={studioMode === 'COMMERCIAL_PRICING' ? 'text-white' : 'text-indigo-400'} />
-            <span>Commercial Pricing</span>
+            <span>Pricing What-If</span>
           </button>
 
           <button
@@ -515,9 +577,9 @@ export function CounterfactualStudio({
           >
             <Zap size={13} className={studioMode === 'RAZORPAY_EXECUTION' ? 'text-emerald-300' : 'text-emerald-400'} />
             <span className="flex items-center gap-1">
-              <span>Razorpay Execution</span>
+              <span>Take Action</span>
               <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-500/40">
-                Phase 6
+                Sandbox
               </span>
             </span>
           </button>
@@ -531,7 +593,7 @@ export function CounterfactualStudio({
             }`}
           >
             <Wrench size={13} />
-            <span>Resolution Strategy</span>
+            <span>Payment Fix Strategy</span>
           </button>
 
           <button
@@ -545,6 +607,54 @@ export function CounterfactualStudio({
             <Database size={13} className="text-emerald-400" />
             <span>Saved Scenarios ({savedSimulations.length})</span>
           </button>
+        </div>
+      </div>
+
+      {/* Entry Mode Switcher: Existing Payment vs New What-If Scenario */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEntryMode('HYPOTHETICAL_SCENARIO')
+              setGrossAmount(hypotheticalGross)
+              setRefundAmount(0)
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+              entryMode === 'HYPOTHETICAL_SCENARIO'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white bg-slate-950/60 border border-slate-800'
+            }`}
+          >
+            <Sparkles size={14} className={entryMode === 'HYPOTHETICAL_SCENARIO' ? 'text-white' : 'text-indigo-400'} />
+            <span>New What-If Scenario</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEntryMode('EXISTING_PAYMENT')
+              if (currentException) {
+                setGrossAmount(Number(currentException.expected_settlement || currentException.actual_settlement || 10000))
+                setRefundAmount(Number(currentException.refund_amount || 0))
+              }
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+              entryMode === 'EXISTING_PAYMENT'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white bg-slate-950/60 border border-slate-800'
+            }`}
+          >
+            <Receipt size={14} className={entryMode === 'EXISTING_PAYMENT' ? 'text-white' : 'text-slate-400'} />
+            <span>Existing Payment Problem</span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400 font-medium hidden sm:flex items-center gap-1.5">
+          <Info size={14} className="text-indigo-400" />
+          <span>
+            {entryMode === 'HYPOTHETICAL_SCENARIO'
+              ? 'Test pricing, discounts, and fee changes without selecting an existing payment.'
+              : 'Analyze and resolve specific disputed merchant transactions.'}
+          </span>
         </div>
       </div>
 
@@ -576,113 +686,238 @@ export function CounterfactualStudio({
 
       {/* 2-Column Workspace Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Transaction / Exception Queue */}
+        {/* Left Column */}
         <div className="lg:col-span-4 card-panel flex flex-col h-[780px]">
-          <div className="p-4 border-b border-slate-800/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <span>Simulation Target Queue</span>
-                <span className="text-xs text-slate-400 font-normal">
-                  ({filteredQueue.length} items)
+          {entryMode === 'HYPOTHETICAL_SCENARIO' ? (
+            <div className="flex flex-col h-full space-y-4 p-4 overflow-y-auto">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Quick Presets
                 </span>
-              </h3>
-            </div>
+                <h3 className="font-bold text-white text-sm">What-If Templates</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Click a template to load real business pricing scenarios.
+                </p>
+              </div>
 
-            <input
-              type="text"
-              placeholder="Search by transaction ID, exception, status..."
-              value={queueSearch}
-              onChange={(e) => setQueueSearch(e.target.value)}
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-indigo-500 transition"
-            />
-          </div>
-
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-800/80 p-2 space-y-1">
-            {filteredQueue.map((item) => {
-              const isSelected = item.transaction_id === currentException?.transaction_id
-              const itemDiff = Math.abs(Number(item.difference ?? 0))
-              const severity = getExceptionSeverity(item.exception_type)
-              const isItemDup = item.exception_type === 'DUPLICATE'
-
-              return (
-                <div
-                  key={item.transaction_id}
-                  onClick={() => onSelectTxId && onSelectTxId(item.transaction_id)}
-                  className={`p-3 rounded-xl border transition cursor-pointer ${
-                    isSelected
-                      ? 'bg-indigo-950/60 border-indigo-500/50 shadow-md ring-1 ring-indigo-500/30'
-                      : 'bg-slate-900/40 border-transparent hover:bg-slate-800/60 hover:border-slate-700/80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span
-                      className={`mono-id font-bold text-xs ${
-                        isSelected ? 'text-indigo-300' : 'text-white'
+              <div className="space-y-2.5">
+                {HYPOTHETICAL_PRESETS.map((preset) => {
+                  const isSelected = grossAmount === preset.gross && newDiscountPct === preset.newDiscount
+                  return (
+                    <div
+                      key={preset.name}
+                      onClick={() => {
+                        setHypotheticalGross(preset.gross)
+                        setGrossAmount(preset.gross)
+                        setHypotheticalVolume(preset.volume)
+                        setCurrentDiscountPct(preset.currentDiscount)
+                        setNewDiscountPct(preset.newDiscount)
+                        setFeePct(preset.fee)
+                        setSettlementRecoveryPct(preset.recovery)
+                        setSettlementTimingDays(preset.timing)
+                        setRefundAmount(0)
+                      }}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-950/70 border-indigo-500 shadow-md ring-1 ring-indigo-500/40'
+                          : 'bg-slate-900/60 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700'
                       }`}
                     >
-                      {item.transaction_id}
-                    </span>
-                    <RiskBadge risk={severity} />
-                  </div>
+                      <div className="flex items-center justify-between mb-1">
+                        <strong className="text-xs font-bold text-white">{preset.name}</strong>
+                        <span className="text-[10px] font-bold text-indigo-300 bg-indigo-900/60 px-1.5 py-0.5 rounded">
+                          {preset.newDiscount}% Disc
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mb-2">{preset.desc}</p>
+                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-800 text-slate-300">
+                        <span>Sales: <strong className="text-white font-mono">{formatCurrency(preset.gross)}</strong></span>
+                        <span>Orders: <strong className="text-white font-mono">{preset.volume}</strong></span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
 
-                  <div className="text-xs text-slate-300 font-medium mb-1">
-                    {readableException(item.exception_type)}
-                    {isItemDup && (
-                      <span className="ml-1 text-[10px] text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
-                        Duplicate Settlement
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/80">
-                    <span className="text-slate-400">Expected:</span>
-                    <span className="font-bold text-slate-200 tabular-nums">
-                      {formatCurrency(item.expected_settlement)}
+              <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1.5 text-xs text-slate-400 mt-auto">
+                <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                  <Info size={13} className="text-indigo-400" />
+                  <span>Merchant What-If Tips</span>
+                </span>
+                <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-400">
+                  <li>Compare discount proposals against expected volume lift.</li>
+                  <li>Check payment processing fees before signing processor contracts.</li>
+                  <li>Simulate Same-Day vs Next-Day payout cashflow effects.</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="p-4 border-b border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <span>Disputed Payment Queue</span>
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({filteredQueue.length} items)
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs pt-0.5">
-                    <span className="text-slate-400">Exposure Variance:</span>
-                    <span className="font-bold text-rose-400 tabular-nums">
-                      {formatCurrency(itemDiff)}
-                    </span>
-                  </div>
+                  </h3>
                 </div>
-              )
-            })}
-          </div>
+
+                <input
+                  type="text"
+                  placeholder="Search by transaction ID, problem, status..."
+                  value={queueSearch}
+                  onChange={(e) => setQueueSearch(e.target.value)}
+                  className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-indigo-500 transition"
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-800/80 p-2 space-y-1">
+                {filteredQueue.map((item) => {
+                  const isSelected = item.transaction_id === currentException?.transaction_id
+                  const itemDiff = Math.abs(Number(item.difference ?? 0))
+                  const severity = getExceptionSeverity(item.exception_type)
+                  const isItemDup = item.exception_type === 'DUPLICATE'
+
+                  return (
+                    <div
+                      key={item.transaction_id}
+                      onClick={() => onSelectTxId && onSelectTxId(item.transaction_id)}
+                      className={`p-3 rounded-xl border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-950/60 border-indigo-500/50 shadow-md ring-1 ring-indigo-500/30'
+                          : 'bg-slate-900/40 border-transparent hover:bg-slate-800/60 hover:border-slate-700/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span
+                          className={`mono-id font-bold text-xs ${
+                            isSelected ? 'text-indigo-300' : 'text-white'
+                          }`}
+                        >
+                          {item.transaction_id}
+                        </span>
+                        <RiskBadge risk={severity} />
+                      </div>
+
+                      <div className="text-xs text-slate-300 font-medium mb-1">
+                        {readableException(item.exception_type)}
+                        {isItemDup && (
+                          <span className="ml-1 text-[10px] text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                            Duplicate Payment
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/80">
+                        <span className="text-slate-400">Expected:</span>
+                        <span className="font-bold text-slate-200 tabular-nums">
+                          {formatCurrency(item.expected_settlement)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-0.5">
+                        <span className="text-slate-400">Difference:</span>
+                        <span className="font-bold text-rose-400 tabular-nums">
+                          {formatCurrency(itemDiff)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right Column: Simulation & Decision Workspace */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Target Transaction Header Info */}
+          {/* Prominent Simulation Disclaimer */}
+          <div className="p-3.5 bg-indigo-950/50 border border-indigo-500/30 rounded-xl flex items-center justify-between gap-3 text-xs text-indigo-200 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Sparkles size={15} className="text-indigo-400 shrink-0" />
+              <span>
+                <strong>Notice:</strong> This is a simulation. It does not change your real payments.
+              </span>
+            </div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-900/60 px-2 py-0.5 rounded">
+              {entryMode === 'HYPOTHETICAL_SCENARIO' ? 'Hypothetical Mode' : 'Payment Mode'}
+            </span>
+          </div>
+
+          {/* Active Entity or Hypothetical Sales Bar */}
           <div className="card-panel p-5 bg-slate-900 border border-slate-800 shadow-md space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Active Target Entity
-                  </span>
-                  <RiskBadge risk={getExceptionSeverity(currentException?.exception_type)} />
-                  {isDuplicate && (
-                    <span className="text-[10px] font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded">
-                      Duplicate Settlement Identified
+              {entryMode === 'HYPOTHETICAL_SCENARIO' ? (
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                      Hypothetical Sales Parameters
                     </span>
-                  )}
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 border border-emerald-500/40 px-1.5 py-0.2 rounded">
+                      Live What-If
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Gross Sales (₹)</label>
+                      <input
+                        type="number"
+                        min="1000"
+                        max="10000000"
+                        step="1000"
+                        value={grossAmount}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0
+                          setGrossAmount(val)
+                          setHypotheticalGross(val)
+                        }}
+                        className="w-full bg-transparent font-mono text-lg font-bold text-white outline-none"
+                      />
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Expected Orders / Transactions</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100000"
+                        step="10"
+                        value={hypotheticalVolume}
+                        onChange={(e) => setHypotheticalVolume(parseInt(e.target.value, 10) || 1)}
+                        className="w-full bg-transparent font-mono text-lg font-bold text-white outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-2xl font-bold text-white mono-id">
-                  {currentException?.transaction_id}
-                </h2>
-                <p className="text-xs text-slate-300">
-                  Order ID: <strong className="text-white">{currentException?.order_id || 'ORD_2013'}</strong> • Rail:{' '}
-                  <strong className="text-white">{currentException?.payment_method || 'CARD'}</strong> • Expected Settlement:{' '}
-                  <strong className="text-indigo-300">{formatCurrency(expected)}</strong>
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Selected Disputed Payment
+                    </span>
+                    <RiskBadge risk={getExceptionSeverity(currentException?.exception_type)} />
+                    {isDuplicate && (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                        Duplicate Payment
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mono-id">
+                    {currentException?.transaction_id}
+                  </h2>
+                  <p className="text-xs text-slate-300">
+                    Order: <strong className="text-white">{currentException?.order_id || 'ORD_2013'}</strong> • Method:{' '}
+                    <strong className="text-white">{currentException?.payment_method || 'CARD'}</strong> • Expected:{' '}
+                    <strong className="text-indigo-300 font-mono">{formatCurrency(expected)}</strong>
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-col sm:items-end gap-2">
                 <div className="text-left sm:text-right">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Gross Value</span>
-                  <span className="text-2xl font-bold text-white tabular-nums">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Sales</span>
+                  <span className="text-2xl font-bold text-white tabular-nums font-mono">
                     {formatCurrency(grossAmount)}
                   </span>
                 </div>
@@ -692,10 +927,10 @@ export function CounterfactualStudio({
                   onClick={handleSaveSimulation}
                   disabled={isSaving}
                   className="btn btn-primary btn-sm mt-1 shadow-md"
-                  title="Persist simulation scenario to MongoDB"
+                  title="Save simulation scenario to MongoDB"
                 >
                   <BookmarkPlus size={13} className={isSaving ? 'spin' : ''} />
-                  <span>{isSaving ? 'Saving to DB...' : 'Save Scenario to MongoDB'}</span>
+                  <span>{isSaving ? 'Saving...' : 'Save Scenario'}</span>
                 </button>
               </div>
             </div>
@@ -706,15 +941,17 @@ export function CounterfactualStudio({
           ========================================================= */}
           {studioMode === 'COMMERCIAL_PRICING' && (
             <>
-              {/* 3D Visual Flow Experience Scene */}
-              <CounterfactualScene
-                grossAmount={grossAmount}
-                currentSettlement={sim.current_state.merchant_settlement}
-                counterfactualSettlement={sim.counterfactual_state.merchant_settlement}
-                merchantDelta={sim.deltas.merchant_delta}
-                activeScenario={active3DBranch}
-                onSelectScenario={setActive3DBranch}
-              />
+              {/* 3D Visual Flow Experience Scene (in payment mode) */}
+              {entryMode === 'EXISTING_PAYMENT' && (
+                <CounterfactualScene
+                  grossAmount={grossAmount}
+                  currentSettlement={sim.current_state.merchant_settlement}
+                  counterfactualSettlement={sim.counterfactual_state.merchant_settlement}
+                  merchantDelta={sim.deltas.merchant_delta}
+                  activeScenario={active3DBranch}
+                  onSelectScenario={setActive3DBranch}
+                />
+              )}
 
               {/* Scenario Controls (Live Sliders) */}
               <ScenarioControls
@@ -737,6 +974,47 @@ export function CounterfactualStudio({
               {/* Side-by-Side Financial Impact */}
               <FinancialImpact simulation={sim} />
 
+              {/* Collapsible Calculation Details Section */}
+              <div className="card-panel p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                <button
+                  onClick={() => setShowFormulaDetails(!showFormulaDetails)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Info size={14} className="text-indigo-400" />
+                    <span>Show calculation details</span>
+                  </div>
+                  {showFormulaDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+
+                {showFormulaDetails && (
+                  <div className="pt-3 border-t border-slate-800 space-y-2 text-xs text-slate-300 font-mono">
+                    <div className="p-3 bg-slate-950 rounded-lg space-y-1.5">
+                      <div className="text-indigo-300 font-bold">Calculation Formula:</div>
+                      <div>Money You Receive = Gross Sales - Customer Discount - Payment Processing Fee - GST - Refunds</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                      <div className="p-2.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                        <span className="text-slate-400 text-[10px] uppercase block">Current Plan Calculation</span>
+                        <div>Gross: {formatCurrency(grossAmount)}</div>
+                        <div>Discount ({currentDiscountPct}%): -{formatCurrency(sim.current_state.discount_amount)}</div>
+                        <div>Fee + GST ({feePct}% + 18%): -{formatCurrency(sim.current_state.fee_amount + sim.current_state.tax_amount)}</div>
+                        <div className="font-bold text-emerald-400 pt-1">Payout: {formatCurrency(sim.current_state.merchant_settlement)}</div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                        <span className="text-slate-400 text-[10px] uppercase block">Proposed Plan Calculation</span>
+                        <div>Gross: {formatCurrency(grossAmount)}</div>
+                        <div>Discount ({newDiscountPct}%): -{formatCurrency(sim.counterfactual_state.discount_amount)}</div>
+                        <div>Fee + GST ({feePct}% + 18%): -{formatCurrency(sim.counterfactual_state.fee_amount + sim.counterfactual_state.tax_amount)}</div>
+                        <div className="font-bold text-indigo-400 pt-1">Payout: {formatCurrency(sim.counterfactual_state.merchant_settlement)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Dynamic Calculated Explanation & Audit Trail */}
               <CounterfactualExplanation simulation={sim} />
 
@@ -748,7 +1026,7 @@ export function CounterfactualStudio({
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-                        EXECUTION ENGINE // PHASE 6
+                        ACTION CENTER
                       </span>
                       <span className="text-[10px] font-bold bg-emerald-950/90 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <ShieldCheck size={10} />
@@ -756,9 +1034,9 @@ export function CounterfactualStudio({
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <span>Gateway Execution Hub</span>
+                      <span>Take Action</span>
                       <span className="mono-id text-xs text-indigo-300">
-                        ({currentException?.transaction_id || 'TXN_SIMULATION'})
+                        ({entryMode === 'HYPOTHETICAL_SCENARIO' ? 'HYPOTHETICAL_SIMULATION' : currentException?.transaction_id || 'TXN_SIMULATION'})
                       </span>
                     </h3>
                   </div>
@@ -783,7 +1061,7 @@ export function CounterfactualStudio({
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      Refund (6.3)
+                      Refund
                     </button>
                     <button
                       onClick={() => setExecType('INVOICE')}
@@ -793,7 +1071,7 @@ export function CounterfactualStudio({
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      Invoice (6.4)
+                      Invoice
                     </button>
                   </div>
                 </div>

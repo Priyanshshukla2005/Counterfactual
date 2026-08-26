@@ -161,19 +161,19 @@ export function MonitoringDashboard() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-              PHASE 7 // CLOSED-LOOP FINANCIAL INTELLIGENCE
+              Prediction Review
             </span>
             <span className="text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
               <CheckCircle2 size={10} />
-              <span>Feedback Active</span>
+              <span>Learning Active</span>
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
             <Compass className="text-indigo-400" size={24} />
-            <span>Monitoring & Outcome Tracking</span>
+            <span>How Are Your Predictions Doing?</span>
           </h2>
           <p className="text-xs text-slate-300">
-            Deterministic prediction-vs-actual comparison, automated deviation thresholds, and closed-loop historical learning.
+            See how close our estimates were to your actual payments and what we learned from past decisions.
           </p>
         </div>
 
@@ -182,10 +182,10 @@ export function MonitoringDashboard() {
             onClick={() => loadData(true)}
             disabled={isRefreshing}
             className="btn btn-secondary btn-sm flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Refresh closed-loop monitoring telemetry"
+            title="Refresh payment prediction data"
           >
             <RefreshCw size={13} className={isRefreshing ? 'spin text-indigo-400' : ''} />
-            <span>{isRefreshing ? 'Synchronizing...' : 'Refresh Telemetry'}</span>
+            <span>{isRefreshing ? 'Checking...' : 'Refresh Telemetry'}</span>
           </button>
         </div>
       </div>
@@ -197,23 +197,21 @@ export function MonitoringDashboard() {
         <div className="flex items-center justify-between">
           <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
             <BrainCircuit size={13} className="text-indigo-400" />
-            <span>Closed-Loop System Lifecycle</span>
+            <span>6-Step Prediction & Action Cycle</span>
           </span>
           <span className="text-[11px] font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-800">
-            Automated Feedback Pipeline
+            Automatic Feedback
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center text-xs">
           {[
-            { step: '1. Predict', label: 'Counterfactual', color: 'text-indigo-400', bg: 'bg-indigo-950/40 border-indigo-900/60' },
-            { step: '2. Recommend', label: 'Guardrails', color: 'text-sky-400', bg: 'bg-sky-950/40 border-sky-900/60' },
-            { step: '3. Approve', label: 'Human Signoff', color: 'text-amber-400', bg: 'bg-amber-950/40 border-amber-900/60' },
-            { step: '4. Execute', label: 'Razorpay Sandbox', color: 'text-emerald-400', bg: 'bg-emerald-950/40 border-emerald-900/60' },
-            { step: '5. Observe', label: 'Actual Outcome', color: 'text-purple-400', bg: 'bg-purple-950/40 border-purple-900/60' },
-            { step: '6. Compare', label: 'Delta Engine', color: 'text-blue-400', bg: 'bg-blue-950/40 border-blue-900/60' },
-            { step: '7. Explain', label: 'Root Cause', color: 'text-rose-400', bg: 'bg-rose-950/40 border-rose-900/60' },
-            { step: '8. Learn', label: 'Historical Feedback', color: 'text-emerald-300', bg: 'bg-emerald-950/60 border-emerald-500/40' },
+            { step: '1. What-If', label: 'Simulate Outcome', color: 'text-indigo-400', bg: 'bg-indigo-950/40 border-indigo-900/60' },
+            { step: '2. Recommendation', label: 'Safety Checks', color: 'text-sky-400', bg: 'bg-sky-950/40 border-sky-900/60' },
+            { step: '3. Your Approval', label: 'Human Sign-Off', color: 'text-amber-400', bg: 'bg-amber-950/40 border-amber-900/60' },
+            { step: '4. Take Action', label: 'Razorpay Sandbox', color: 'text-emerald-400', bg: 'bg-emerald-950/40 border-emerald-900/60' },
+            { step: '5. See Outcome', label: 'Compare Actual', color: 'text-purple-400', bg: 'bg-purple-950/40 border-purple-900/60' },
+            { step: '6. Learn', label: 'Past Insights', color: 'text-emerald-300', bg: 'bg-emerald-950/60 border-emerald-500/40' },
           ].map((item, idx) => (
             <div
               key={idx}
@@ -230,71 +228,67 @@ export function MonitoringDashboard() {
       {/* 3. KEY METRICS GRID */}
       {/* ------------------------------------------------------------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Prediction Accuracy */}
+        {/* Metric 1: How Close Our Estimates Were */}
         <div className="card-panel p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Prediction Accuracy
+              How Close Our Estimates Were
             </span>
             <ShieldCheck size={16} className="text-emerald-400" />
           </div>
           <div className="text-2xl font-bold text-white tabular-nums">
             {overview?.metrics.prediction_accuracy_rate ?? 96.2}%
           </div>
-          <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-            <span>✓ High Confidence Fidelity</span>
-            <span className="text-slate-500">• (100 - Delta%)</span>
+          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+            <span>Based on {overview?.metrics.total_monitored ?? 10} observed payments</span>
           </div>
         </div>
 
-        {/* Metric 2: Average Deviation */}
+        {/* Metric 2: Average Difference */}
         <div className="card-panel p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Average Deviation
+              Average Difference
             </span>
             <TrendingUp size={16} className="text-indigo-400" />
           </div>
           <div className="text-2xl font-bold text-indigo-300 tabular-nums">
             {overview?.metrics.average_deviation_pct ?? 3.8}%
           </div>
-          <div className="text-[11px] text-slate-400 font-medium">
-            Median Variance: <strong className="text-slate-200">{overview?.metrics.median_deviation_pct ?? 3.5}%</strong>
+          <div className="text-[11px] text-slate-400">
+            Avg Amount: <strong className="text-slate-200">{formatCurrency(overview?.metrics.average_deviation_amount ?? 120)}</strong>
           </div>
         </div>
 
-        {/* Metric 3: Total Lifecycle Executions */}
+        {/* Metric 3: Actions Completed */}
         <div className="card-panel p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Executions Tracked
+              Actions Completed
             </span>
-            <Zap size={16} className="text-amber-400" />
+            <Zap size={16} className="text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold text-white tabular-nums">
-            {overview?.metrics.total_executions ?? 16}
+          <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+            {overview?.metrics.total_monitored ?? 10}
           </div>
           <div className="text-[11px] text-slate-400">
-            <span className="text-emerald-400 font-bold">{overview?.metrics.successful_executions ?? 16} Successful</span>
-            {overview?.metrics.failed_executions ? (
-              <span className="text-rose-400 font-bold ml-1.5">• {overview.metrics.failed_executions} Failed</span>
-            ) : null}
+            Payment Links, Refunds & Invoices
           </div>
         </div>
 
-        {/* Metric 4: Critical Deviations */}
+        {/* Metric 4: Large Differences */}
         <div className="card-panel p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Critical Deviations
+              Large Differences (&gt;10%)
             </span>
             <AlertTriangle size={16} className="text-rose-400" />
           </div>
-          <div className="text-2xl font-bold text-rose-300 tabular-nums">
+          <div className="text-2xl font-bold text-rose-400 tabular-nums">
             {overview?.metrics.critical_deviations_count ?? 1}
           </div>
           <div className="text-[11px] text-slate-400">
-            <span>&gt;10% variance threshold alerts</span>
+            Flagged for review
           </div>
         </div>
       </div>

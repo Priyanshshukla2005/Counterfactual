@@ -63,17 +63,17 @@ export function readableException(type: string | undefined | null): string {
   if (!type) return 'Unknown'
   switch (type.toUpperCase()) {
     case 'NONE':
-      return 'Matched & Reconciled'
+      return 'Payment Matched'
     case 'DUPLICATE':
-      return 'Duplicate Settlement'
+      return 'Duplicate Payment'
     case 'MISSING_SETTLEMENT':
-      return 'Missing Settlement'
+      return 'Missing Payment'
     case 'DELAYED_SETTLEMENT':
-      return 'Delayed Settlement'
+      return 'Payment Arriving Late'
     case 'PARTIAL_REFUND':
-      return 'Partial Refund Mismatch'
+      return 'Refund Issue'
     case 'FEE_MISMATCH':
-      return 'Fee Structure Mismatch'
+      return 'Fee Charged Incorrectly'
     default:
       return type
         .replaceAll('_', ' ')
@@ -1275,6 +1275,49 @@ export async function getRAGSource(chunkId: string, token?: string): Promise<any
   const data = await response.json()
   if (!response.ok) {
     throw new Error(data.message || data.error || 'Failed to load source document.')
+  }
+
+  return data
+}
+
+// ====================================================================
+// PHASE 12: CSV PAYMENT INGESTION CLIENT METHOD
+// ====================================================================
+
+export async function importCSVPayments(
+  records: Array<{
+    transaction_id?: string
+    amount: number
+    payment_method?: string
+    expected_settlement?: number
+    actual_settlement?: number
+    date?: string
+    refund_amount?: number
+    fee?: number
+  }>,
+  token?: string
+): Promise<{
+  success: boolean
+  message: string
+  imported_count: number
+  total_records: number
+  warnings?: string[]
+}> {
+  const authToken = token || getStoredAuthToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/import-csv`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ records }),
+  })
+
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to import payment records.')
   }
 
   return data

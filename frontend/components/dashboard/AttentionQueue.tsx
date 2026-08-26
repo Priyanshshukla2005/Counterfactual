@@ -39,18 +39,18 @@ export function AttentionQueue({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="eyebrow text-rose-400">High Exposure Items</span>
+              <span className="eyebrow text-rose-400">Needs Attention</span>
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
             </div>
-            <h2 className="card-panel-title text-base font-bold">What Needs Attention</h2>
+            <h2 className="card-panel-title text-base font-bold">Payments That Need Attention</h2>
             <p className="card-panel-subtitle">
-              Highest-exposure discrepancies requiring urgent treasury review
+              Payments with the largest difference between expected and received money
             </p>
           </div>
         </div>
 
         <button onClick={onViewAll} className="btn btn-secondary btn-sm">
-          <span>View All Exceptions ({exceptions.length})</span>
+          <span>View All Problems ({exceptions.length})</span>
           <ArrowUpRight size={13} />
         </button>
       </div>
@@ -80,7 +80,7 @@ export function AttentionQueue({
                     <SettlementStatusBadge status={item.settlement_status} />
                     {isDuplicate && (
                       <span className="text-[10px] font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded">
-                        Duplicate Settlement
+                        Duplicate Payment
                       </span>
                     )}
                   </div>
@@ -89,7 +89,7 @@ export function AttentionQueue({
                       {readableException(item.exception_type)}
                     </span>
                     <span className="text-slate-400 font-normal">
-                      {' '}• Expected: <strong className="text-slate-200">{formatCurrency(item.expected_settlement)}</strong> | Recorded: <strong className="text-slate-200">{formatCurrency(item.actual_settlement)}</strong>
+                      {' '}• Expected: <strong className="text-slate-200">{formatCurrency(item.expected_settlement)}</strong> | Received: <strong className="text-slate-200">{formatCurrency(item.actual_settlement)}</strong>
                     </span>
                   </div>
                 </div>
@@ -98,7 +98,7 @@ export function AttentionQueue({
               {/* Right Exposure & Tactical Action Triggers */}
               <div className="flex items-center justify-between lg:justify-end gap-5 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800">
                 <div className="text-left lg:text-right">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">At-Risk Capital</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Money at Risk</div>
                   <div className="text-base font-bold text-rose-400 tabular-nums">
                     {formatCurrency(impact)}
                   </div>
@@ -108,17 +108,17 @@ export function AttentionQueue({
                   <button
                     onClick={() => onSimulate(item.transaction_id)}
                     className="btn btn-primary btn-sm"
-                    title="Simulate Counterfactual Resolution in 3D Studio"
+                    title="Run What-If Analysis on this payment"
                   >
                     <Sparkles size={13} />
-                    <span>Counterfactual</span>
+                    <span>What-If Analysis</span>
                   </button>
 
                   <button
                     onClick={() => onInspect(item)}
                     className="btn btn-secondary btn-sm"
                   >
-                    <span>Investigate</span>
+                    <span>View</span>
                   </button>
                 </div>
               </div>

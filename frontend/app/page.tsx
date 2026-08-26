@@ -31,6 +31,7 @@ import { CounterfactualStudio } from '@/components/counterfactual/Counterfactual
 import { MonitoringDashboard } from '@/components/monitoring/MonitoringDashboard'
 import { ReportAnalytics } from '@/components/reports/ReportAnalytics'
 import { DemoStudioModal } from '@/components/demo/DemoStudioModal'
+import { CSVImportModal } from '@/components/onboarding/CSVImportModal'
 import { DashboardSkeleton } from '@/components/common/LoadingSkeleton'
 import { EmptyState } from '@/components/common/EmptyState'
 
@@ -55,6 +56,7 @@ function DashboardApp() {
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [isDemoOpen, setIsDemoOpen] = useState(false)
+  const [isImportOpen, setIsImportOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -333,6 +335,7 @@ function DashboardApp() {
           isSyncing={isSyncing}
           onOpenMobile={() => setMobileOpen(true)}
           onOpenDemo={() => setIsDemoOpen(true)}
+          onOpenImport={() => setIsImportOpen(true)}
         />
 
         {/* Continuous Vertically Scrollable Workspace */}
@@ -357,7 +360,7 @@ function DashboardApp() {
                 <div className="page-header">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="eyebrow">Settlement Operations // Section 01</span>
+                      <span className="eyebrow">Payment Overview</span>
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
                     </div>
                     <h1 className="page-title">{dynamicGreeting}</h1>
@@ -371,7 +374,7 @@ function DashboardApp() {
                       className="btn btn-primary"
                     >
                       <RefreshCw size={14} className={isSyncing ? 'spin' : ''} />
-                      <span>{isSyncing ? 'Syncing...' : 'Sync Engine'}</span>
+                      <span>{isSyncing ? 'Checking...' : 'Check Payments'}</span>
                     </button>
                   </div>
                 </div>
@@ -379,43 +382,43 @@ function DashboardApp() {
                 {/* 4 3D KPI Cards */}
                 <div className="kpi-grid">
                   <MetricCard
-                    label="Net Settlement Volume"
+                    label="Total Money Expected"
                     value={formatCurrency(expectedTotal)}
-                    subtitle="Total expected receivable batch"
-                    badgeText="Live Engine Feed"
+                    subtitle="Total money expected from your sales"
+                    badgeText="Payment Feed"
                     badgeTone="positive"
                     tone="indigo"
-                    tooltip="Total expected settlement calculated from all processed transactions"
+                    tooltip="Total money you should receive from all customer transactions"
                   />
 
                   <MetricCard
-                    label="Reconciliation Rate"
+                    label="Payments Matched"
                     value={`${matchRate.toFixed(1)}%`}
                     subtitle={`${metrics.matched_records ?? 0} of ${totalRecords} matched`}
-                    badgeText="Batch Reconciled"
+                    badgeText="Verified Matched"
                     badgeTone="positive"
                     tone="green"
-                    tooltip="Percentage of transactions matching expected bank settlement"
+                    tooltip="We checked all payments against what you expected to receive"
                   />
 
                   <MetricCard
-                    label="Open Exceptions"
+                    label="Payments That Need Attention"
                     value={String(totalExceptions)}
-                    subtitle="Items requiring resolution"
-                    badgeText="Requires Action"
+                    subtitle="Payments with differences or issues"
+                    badgeText="Needs Review"
                     badgeTone="negative"
                     tone="amber"
-                    tooltip="Transactions with missing, delayed, duplicate, or fee discrepancies"
+                    tooltip="Payments with missing money, delays, duplicate deposits, or fee issues"
                   />
 
                   <MetricCard
-                    label="At-Risk Capital"
+                    label="Money at Risk"
                     value={formatCurrency(unreconciledAmount)}
-                    subtitle="Cumulative variance exposure"
-                    badgeText="Unreconciled"
+                    subtitle="Total difference across all payments"
+                    badgeText="Action Required"
                     badgeTone="negative"
                     tone="red"
-                    tooltip="Net financial exposure across all unmatched records"
+                    tooltip="This is the difference between what you expected and what you actually received"
                   />
                 </div>
 
@@ -678,6 +681,13 @@ function DashboardApp() {
       <DemoStudioModal
         isOpen={isDemoOpen}
         onClose={() => setIsDemoOpen(false)}
+      />
+
+      {/* Merchant CSV Payment Ingestion Modal */}
+      <CSVImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSuccess={() => loadData(false)}
       />
     </div>
   )

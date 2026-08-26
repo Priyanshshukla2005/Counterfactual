@@ -115,13 +115,13 @@ export function Sidebar({
 
         {/* Section Navigator */}
         <div className="sidebar-nav space-y-4">
-          {/* Group 1: Ledger Operations */}
+          {/* Group 1: Payment Operations */}
           <div>
-            <div className="nav-group-label">Ledger Operations</div>
+            <div className="nav-group-label">Payment Operations</div>
             <button
               className={`nav-item cursor-pointer ${active === 'Overview' ? 'active' : ''}`}
               onClick={() => handleNavClick('Overview')}
-              title="Jump to Overview & Settlement Performance"
+              title="Jump to Overview & Payment Performance"
             >
               <div className="flex items-center gap-2.5">
                 <LayoutDashboard size={16} className="nav-icon" />
@@ -135,11 +135,11 @@ export function Sidebar({
             <button
               className={`nav-item cursor-pointer ${active === 'Transactions' ? 'active' : ''}`}
               onClick={() => handleNavClick('Transactions')}
-              title="Jump to Transactions Workspace"
+              title="Jump to Payments Ledger"
             >
               <div className="flex items-center gap-2.5">
                 <Activity size={16} className="nav-icon" />
-                <span>Transactions</span>
+                <span>Payments</span>
               </div>
               {active === 'Transactions' && (
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_#818cf8]" />
@@ -149,11 +149,11 @@ export function Sidebar({
             <button
               className={`nav-item cursor-pointer ${active === 'Exceptions' ? 'active' : ''}`}
               onClick={() => handleNavClick('Exceptions')}
-              title="Jump to Exceptions Queue"
+              title="Jump to Payments That Need Attention"
             >
               <div className="flex items-center gap-2.5">
                 <AlertTriangle size={16} className="nav-icon text-amber-500" />
-                <span>Exceptions</span>
+                <span>Problems to Review</span>
               </div>
               {totalExceptions > 0 ? (
                 <span className="kpi-badge-negative px-1.5 py-0.2 text-[10px]">
@@ -165,49 +165,49 @@ export function Sidebar({
             </button>
           </div>
 
-          {/* Group 2: Decision Intelligence */}
+          {/* Group 2: Business Impact & Simulation */}
           <div>
-            <div className="nav-group-label">Decision Intelligence</div>
+            <div className="nav-group-label">Impact & Simulation</div>
             <button
               className={`nav-item cursor-pointer ${active === 'Counterfactuals' ? 'active' : ''}`}
               onClick={() => handleNavClick('Counterfactuals')}
-              title="Jump to Counterfactual Studio & 3D Simulator"
+              title="Jump to What-If Simulator & 3D Impact Viewer"
             >
               <div className="flex items-center gap-2.5">
                 <Sparkles size={16} className="nav-icon text-indigo-400" />
-                <span>Counterfactuals</span>
+                <span>What-If Simulator</span>
               </div>
               <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 border border-indigo-500/40 px-1.5 py-0.5 rounded shadow-2xs">
-                3D STUDIO
+                SIMULATE
               </span>
             </button>
 
             <button
               className={`nav-item cursor-pointer ${active === 'Monitoring' ? 'active' : ''}`}
               onClick={() => handleNavClick('Monitoring')}
-              title="Jump to Closed-Loop Monitoring & Performance Tracking"
+              title="Jump to Prediction Performance & Outcome Review"
             >
               <div className="flex items-center gap-2.5">
                 <Compass size={16} className="nav-icon text-emerald-400" />
-                <span>Monitoring</span>
+                <span>Prediction Review</span>
               </div>
               <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded shadow-2xs">
-                CLOSED-LOOP
+                FEEDBACK
               </span>
             </button>
           </div>
 
-          {/* Group 3: Executive Audit */}
+          {/* Group 3: Reports & Review */}
           <div>
-            <div className="nav-group-label">Executive Audit</div>
+            <div className="nav-group-label">Reports & Review</div>
             <button
               className={`nav-item cursor-pointer ${active === 'Reports' ? 'active' : ''}`}
               onClick={() => handleNavClick('Reports')}
-              title="Jump to Reports & Analytics"
+              title="Jump to Reports & Payment Review"
             >
               <div className="flex items-center gap-2.5">
                 <BarChart3 size={16} className="nav-icon" />
-                <span>Reports & Analytics</span>
+                <span>Reports & Review</span>
               </div>
               {active === 'Reports' && (
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_#818cf8]" />
@@ -218,7 +218,7 @@ export function Sidebar({
           {/* Group 4: Interactive Demo Mode */}
           {onOpenDemo && (
             <div>
-              <div className="nav-group-label">Fintech Intelligence Demo</div>
+              <div className="nav-group-label">Interactive Story Demo</div>
               <button
                 className="w-full flex items-center justify-between p-2.5 bg-gradient-to-r from-indigo-950/60 to-slate-900 border border-indigo-500/40 hover:border-indigo-400 text-indigo-200 hover:text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-950/40 transition group cursor-pointer"
                 onClick={onOpenDemo}
@@ -242,8 +242,8 @@ export function Sidebar({
           <div className="engine-status-pill">
             <span className="status-beacon" />
             <div className="flex items-center justify-between flex-1">
-              <span>ENGINE ACTIVE</span>
-              <span className="text-[10px] font-mono text-emerald-400">100 ENTITIES</span>
+              <span>PAYMENTS CHECKED</span>
+              <span className="text-[10px] font-mono text-emerald-400">100 RECORDS</span>
             </div>
           </div>
 
